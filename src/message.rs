@@ -1,14 +1,42 @@
-use core::fmt::Display;
+use core::error::Error;
+use core::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub enum ParseError {
     BooleanField(u8),
     TimeField(u8),
-    Tail(u8),
+    HeadTail,
     CommandID(u8),
     SubCommand(u8),
-    Checksum,
+    Checksum(u8, u8),
 }
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ParseError::BooleanField(i) => {
+                f.write_fmt(format_args!("{} is out-of-range for boolean (0,1).", *i))
+            }
+            ParseError::TimeField(i) => {
+                f.write_fmt(format_args!("{} is out-of-range for time [0..31].", *i))
+            }
+            ParseError::HeadTail => f.write_fmt(format_args!(
+                "All messages must start with 0xAA and end with 0xAB."
+            )),
+            ParseError::CommandID(i) => {
+                f.write_fmt(format_args!("{:#04X} is an unknown Command.", *i))
+            }
+            ParseError::SubCommand(i) => {
+                f.write_fmt(format_args!("{} is an unknown SubCommand.", *i))
+            }
+            ParseError::Checksum(a, b) => {
+                f.write_fmt(format_args!("Checksum mismatch: {} != {}", *a, *b))
+            }
+        }
+    }
+}
+
+impl Error for ParseError {}
 
 #[derive(Debug)]
 pub struct Measurement {
@@ -19,9 +47,8 @@ pub struct Measurement {
 impl Measurement {
     fn from_bytes(data: &[u8]) -> Self {
         Measurement {
-            // converting two u8 into u16 cannot fail
-            pm25: u16::from_le_bytes(data[2..4].try_into().unwrap()),
-            pm10: u16::from_le_bytes(data[4..6].try_into().unwrap()),
+            pm25: u16::from_le_bytes(data[2..4].try_into().expect("slice size is 2")),
+            pm10: u16::from_le_bytes(data[4..6].try_into().expect("slice size is 2")),
         }
     }
 
@@ -40,8 +67,9 @@ pub struct NewDeviceID(u16);
 
 impl NewDeviceID {
     fn from_bytes(data: &[u8]) -> Self {
-        // converting two u8 into u16 cannot fail
-        NewDeviceID(u16::from_le_bytes(data[6..8].try_into().unwrap()))
+        NewDeviceID(u16::from_le_bytes(
+            data[6..8].try_into().expect("slice size is 2"),
+        ))
     }
 
     fn populate_query(&self, data: &mut [u8]) {
@@ -341,16 +369,16 @@ pub struct Message {
 impl Message {
     pub fn parse_reply(data: &[u8; 10]) -> Result<Self, ParseError> {
         if data[0] != 0xAA || data[9] != 0xAB {
-            return Err(ParseError::Tail(data[9]));
+            return Err(ParseError::HeadTail);
         }
 
         let chksum = data[2..8].iter().fold(0, |acc: u8, i| acc.wrapping_add(*i));
         if chksum != data[8] {
-            return Err(ParseError::Checksum);
+            return Err(ParseError::Checksum(chksum, data[8]));
         }
 
         let msg = MessageType::parse(data)?;
-        let sensor_id = u16::from_le_bytes(data[6..8].try_into().unwrap());
+        let sensor_id = u16::from_le_bytes(data[6..8].try_into().expect("slice size is 2"));
 
         Ok(Message {
             m_type: msg,

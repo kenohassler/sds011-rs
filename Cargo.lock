@@ -513,6 +513,7 @@ dependencies = [
  "embedded-io",
  "embedded-io-adapters",
  "embedded-io-async",
+ "futures",
  "inquire",
  "tokio-serial",
 ]
