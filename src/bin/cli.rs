@@ -1,14 +1,14 @@
 //use embedded_io_adapters::std::FromStd;
 use embedded_io_adapters::tokio_1::FromTokio;
-use futures::executor::block_on;
 use inquire::Select;
 use sds011::SDS011;
 use std::error::Error;
-use std::thread::sleep;
 use std::time::Duration;
+use tokio::time::sleep;
 use tokio_serial::SerialStream;
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let ports = tokio_serial::available_ports().expect("No ports found!");
     let ports: Vec<&String> = ports.iter().map(|p| &p.port_name).collect();
     let ans = Select::new("Which serial port should be used?", ports).prompt()?;
@@ -24,11 +24,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let sleep = sensor.get_sleep();
     // println!("sleep status: {sleep:?}");
 
-    block_on(sensor.set_work())?;
+    sensor.set_work().await?;
 
-    sleep(Duration::from_secs(10));
+    sleep(Duration::from_secs(10)).await;
 
-    let vals = block_on(sensor.read_sensor_active())?;
+    let vals = sensor.read_sensor_active().await?;
     println!(
         "PM2.5: {} µg/m3 \t PM10: {} µg/m3",
         vals.pm25(),
@@ -37,19 +37,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // _ = sensor.set_query_mode();
 
-    let fw = block_on(sensor.get_firmware())?;
+    let fw = sensor.get_firmware().await?;
     println!("FW version: {fw}");
 
-    let rep_md = block_on(sensor.get_runmode())?;
+    let rep_md = sensor.get_runmode().await?;
     println!("reporting mode: {rep_md:?}");
 
-    let period = block_on(sensor.get_period())?;
+    let period = sensor.get_period().await?;
     println!("measuring period: {period} mins");
 
-    let sleep = block_on(sensor.get_sleep())?;
+    let sleep = sensor.get_sleep().await?;
     println!("sleep status: {sleep:?}");
 
-    block_on(sensor.set_sleep())?;
+    sensor.set_sleep().await?;
 
     //sensor.set_query_mode();
 
