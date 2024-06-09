@@ -4,6 +4,8 @@
 use crate::message::ParseError;
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
+use core::marker::PhantomData;
+use embedded_hal_async::delay::DelayNs;
 use embedded_io_async::{Read, Write};
 use message::Measurement;
 use message::Message;
@@ -51,22 +53,33 @@ impl<E> Debug for SDS011Error<E> {
 
 impl<E> Error for SDS011Error<E> {}
 
-pub struct SDS011<RW> {
-    serial: RW,
-    sensor_id: Option<u16>,
+mod sensor_trait {
+    pub trait SensorState {}
+
+    pub struct Active;
+    impl SensorState for Active {}
+
+    pub struct Query;
+    impl SensorState for Query {}
+
+    pub struct Uninitialized;
+    impl SensorState for Uninitialized {}
 }
 
-impl<RW> SDS011<RW>
+use sensor_trait::SensorState;
+use sensor_trait::{Active, Query, Uninitialized};
+
+pub struct SDS011<RW, S: SensorState> {
+    serial: RW,
+    sensor_id: Option<u16>,
+    _state: PhantomData<S>,
+}
+
+impl<RW, S> SDS011<RW, S>
 where
     RW: Read + Write,
+    S: SensorState,
 {
-    pub fn new(serial: RW) -> Self {
-        SDS011 {
-            serial,
-            sensor_id: None,
-        }
-    }
-
     async fn get_reply(&mut self) -> Result<Message, SDS011Error<RW::Error>> {
         let mut buf = [0u8; RX_MSG_LEN];
 
@@ -91,23 +104,18 @@ where
         }
     }
 
-    pub async fn read_sensor_active(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
+    async fn read_sensor(&mut self, query: bool) -> Result<Measurement, SDS011Error<RW::Error>> {
+        if query {
+            self.send_message(MessageType::Query(None)).await?;
+        }
+
         match self.get_reply().await?.m_type {
             MessageType::Query(data) => Ok(data.expect("replies always contain data")),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
 
-    pub async fn read_sensor_query(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
-        self.send_message(MessageType::Query(None)).await?;
-
-        match self.get_reply().await?.m_type {
-            MessageType::Query(data) => Ok(data.expect("replies always contain data")),
-            _ => Err(SDS011Error::UnexpectedType),
-        }
-    }
-
-    pub async fn get_firmware(&mut self) -> Result<Version, SDS011Error<RW::Error>> {
+    async fn get_firmware(&mut self) -> Result<Version, SDS011Error<RW::Error>> {
         self.send_message(MessageType::FirmwareVersion(None))
             .await?;
 
@@ -117,7 +125,7 @@ where
         }
     }
 
-    pub async fn get_runmode(&mut self) -> Result<ReportingMode, SDS011Error<RW::Error>> {
+    async fn _get_runmode(&mut self) -> Result<ReportingMode, SDS011Error<RW::Error>> {
         let r = Reporting::new_query();
         self.send_message(MessageType::ReportingMode(r)).await?;
 
@@ -127,7 +135,7 @@ where
         }
     }
 
-    pub async fn set_runmode_query(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+    async fn set_runmode_query(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let r = Reporting::new_set(ReportingMode::Query);
         self.send_message(MessageType::ReportingMode(r)).await?;
 
@@ -140,7 +148,7 @@ where
         }
     }
 
-    pub async fn set_runmode_active(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+    async fn set_runmode_active(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let r = Reporting::new_set(ReportingMode::Active);
         self.send_message(MessageType::ReportingMode(r)).await?;
 
@@ -153,7 +161,7 @@ where
         }
     }
 
-    pub async fn get_period(&mut self) -> Result<u8, SDS011Error<RW::Error>> {
+    async fn _get_period(&mut self) -> Result<u8, SDS011Error<RW::Error>> {
         let w = WorkingPeriod::new_query();
         self.send_message(MessageType::WorkingPeriod(w)).await?;
 
@@ -163,7 +171,7 @@ where
         }
     }
 
-    pub async fn set_period(&mut self, minutes: u8) -> Result<(), SDS011Error<RW::Error>> {
+    async fn set_period(&mut self, minutes: u8) -> Result<(), SDS011Error<RW::Error>> {
         let w = WorkingPeriod::new_set(minutes);
         self.send_message(MessageType::WorkingPeriod(w)).await?;
 
@@ -174,7 +182,7 @@ where
         }
     }
 
-    pub async fn get_sleep(&mut self) -> Result<SleepMode, SDS011Error<RW::Error>> {
+    async fn _get_sleep(&mut self) -> Result<SleepMode, SDS011Error<RW::Error>> {
         let s = Sleep::new_query();
         self.send_message(MessageType::Sleep(s)).await?;
 
@@ -184,7 +192,7 @@ where
         }
     }
 
-    pub async fn sleep(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+    async fn sleep(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let s = Sleep::new_set(SleepMode::Sleep);
         self.send_message(MessageType::Sleep(s)).await?;
 
@@ -198,7 +206,7 @@ where
         }
     }
 
-    pub async fn wake(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+    async fn wake(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let s = Sleep::new_set(SleepMode::Work);
         self.send_message(MessageType::Sleep(s)).await?;
 
@@ -209,6 +217,103 @@ where
             },
             _ => Err(SDS011Error::UnexpectedType),
         }
+    }
+}
+
+impl<RW> SDS011<RW, Uninitialized>
+where
+    RW: Read + Write,
+{
+    pub fn new(serial: RW) -> Self {
+        SDS011::<RW, Uninitialized> {
+            serial,
+            sensor_id: None,
+            _state: PhantomData,
+        }
+    }
+
+    pub async fn init<D: DelayNs>(
+        mut self,
+        delay: &mut D,
+    ) -> Result<SDS011<RW, Query>, SDS011Error<RW::Error>> {
+        self.wake().await?;
+        self.set_runmode_query().await?;
+        self.sleep().await?;
+
+        // sleep a short moment to make sure the sensor is ready (todo: make configurable)
+        delay.delay_ms(1_000).await;
+
+        Ok(SDS011::<RW, Query> {
+            serial: self.serial,
+            sensor_id: self.sensor_id,
+            _state: PhantomData,
+        })
+    }
+}
+
+impl<RW> SDS011<RW, Active>
+where
+    RW: Read + Write,
+{
+    pub async fn measure(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
+        // waits for internal WorkingPeriod, then sends measurement
+        self.read_sensor(false).await
+    }
+
+    pub async fn make_polling(self) -> Result<SDS011<RW, Query>, SDS011Error<RW::Error>> {
+        unimplemented!("instead of make_polling, re-initialize the sensor.")
+    }
+}
+
+impl<RW> SDS011<RW, Query>
+where
+    RW: Read + Write,
+{
+    pub async fn measure<D: DelayNs>(
+        &mut self,
+        delay: &mut D,
+    ) -> Result<Measurement, SDS011Error<RW::Error>> {
+        self.wake().await?;
+
+        // need to spin up for a few secs before measurement
+        delay.delay_ms(10_000).await;
+        let res = self.read_sensor(true).await?;
+        self.sleep().await?;
+
+        // sleep a short moment to make sure the sensor is ready (todo: make configurable)
+        delay.delay_ms(1_000).await;
+
+        Ok(res)
+    }
+
+    pub async fn version<D: DelayNs>(
+        &mut self,
+        delay: &mut D,
+    ) -> Result<Version, SDS011Error<RW::Error>> {
+        self.wake().await?;
+        let res = self.get_firmware().await?;
+        self.sleep().await?;
+
+        // sleep a short moment to make sure the sensor is ready (todo: make configurable)
+        delay.delay_ms(1_000).await;
+
+        Ok(res)
+    }
+
+    pub async fn make_periodic(
+        mut self,
+        period: u8,
+    ) -> Result<SDS011<RW, Active>, SDS011Error<RW::Error>> {
+        self.wake().await?;
+        // todo: check period validity somewhere
+        self.set_period(period).await?;
+        self.set_runmode_active().await?;
+
+        Ok(SDS011::<RW, Active> {
+            serial: self.serial,
+            sensor_id: self.sensor_id,
+            _state: PhantomData,
+        })
     }
 }
 

@@ -1,3 +1,4 @@
+use embedded_hal_async::delay::DelayNs;
 //use embedded_io_adapters::std::FromStd;
 use embedded_io_adapters::tokio_1::FromTokio;
 use inquire::Select;
@@ -6,6 +7,14 @@ use std::error::Error;
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio_serial::SerialStream;
+
+struct Delay;
+
+impl DelayNs for Delay {
+    async fn delay_ns(&mut self, n: u32) {
+        sleep(Duration::from_nanos(n.into())).await;
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -17,18 +26,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let serial = SerialStream::open(&builder)?;
 
     let mut adapter = FromTokio::new(serial);
-    let mut sensor = SDS011::new(&mut adapter);
+    let sensor = SDS011::new(&mut adapter);
 
     // sensor.set_sleep();
 
     // let sleep = sensor.get_sleep();
     // println!("sleep status: {sleep:?}");
 
-    sensor.wake().await?;
+    let mut sensor = sensor.init(&mut Delay).await?;
+    println!("init success!");
 
-    sleep(Duration::from_secs(10)).await;
+    // sleep(Duration::from_secs(10)).await;
 
-    let vals = sensor.read_sensor_query().await?;
+    let vals = sensor.measure(&mut Delay).await?;
     println!(
         "PM2.5: {} µg/m3 \t PM10: {} µg/m3",
         vals.pm25(),
@@ -37,19 +47,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // _ = sensor.set_query_mode();
 
-    let fw = sensor.get_firmware().await?;
+    let fw = sensor.version(&mut Delay).await?;
     println!("FW version: {fw}");
 
-    let rep_md = sensor.get_runmode().await?;
-    println!("reporting mode: {rep_md:?}");
+    //let rep_md = sensor.get_runmode().await?;
+    //println!("reporting mode: {rep_md:?}");
 
-    let period = sensor.get_period().await?;
-    println!("measuring period: {period} mins");
+    //let period = sensor.get_period().await?;
+    //println!("measuring period: {period} mins");
 
-    let sleep = sensor.get_sleep().await?;
-    println!("sleep status: {sleep:?}");
+    //let sleep = sensor.get_sleep().await?;
+    //println!("sleep status: {sleep:?}");
 
-    sensor.sleep().await?;
+    //sensor.set_sleep().await?;
 
     //sensor.set_query_mode();
 

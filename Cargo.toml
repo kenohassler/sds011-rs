@@ -4,18 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-embedded-io = "0.6"
+embedded-hal-async = "1.0"
 embedded-io-async = "0.6"
-embedded-io-adapters = { version = "0.6", optional = true, features = ["std", "tokio-1"] }
+embedded-io-adapters = { version = "0.6", optional = true, features = [
+    "std",
+    "tokio-1",
+] }
 tokio-serial = { version = "5.4", optional = true }
-tokio = { version = "1.38", optional = true, features = ["macros", "time", "rt-multi-thread"] }
+tokio = { version = "1.38", optional = true, features = [
+    "macros",
+    "time",
+    "rt-multi-thread",
+] }
 inquire = { version = "0.7", optional = true }
 
 [[bin]]
 name = "cli"
-required-features = [
-    "embedded-io-adapters",
-    "tokio-serial",
-    "tokio",
-    "inquire",
-]
+required-features = ["embedded-io-adapters", "tokio-serial", "tokio", "inquire"]
