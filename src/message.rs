@@ -274,6 +274,13 @@ impl WorkingPeriod {
         }
     }
 
+    pub fn new_set(minutes: u8) -> Self {
+        WorkingPeriod {
+            query: QueryMode::Set,
+            minutes,
+        }
+    }
+
     pub fn period(&self) -> u8 {
         self.minutes
     }
@@ -368,10 +375,7 @@ pub struct Message {
 
 impl Message {
     pub fn parse_reply(data: &[u8; 10]) -> Result<Self, ParseError> {
-        if data[0] != 0xAA || data[9] != 0xAB {
-            return Err(ParseError::HeadTail);
-        }
-
+        // checksum = sum of data bytes
         let chksum = data[2..8].iter().fold(0, |acc: u8, i| acc.wrapping_add(*i));
         if chksum != data[8] {
             return Err(ParseError::Checksum(chksum, data[8]));
@@ -379,6 +383,21 @@ impl Message {
 
         let msg = MessageType::parse(data)?;
         let sensor_id = u16::from_le_bytes(data[6..8].try_into().expect("slice size is 2"));
+
+        // check head and tail
+        if data[0] != 0xAA || data[9] != 0xAB {
+            match &msg {
+                MessageType::Sleep(s) => {
+                    // quirk: sleep reply messages end with 0xFF?!
+                    if let QueryMode::Set = s.query {
+                        if data[9] != 0xFF {
+                            return Err(ParseError::HeadTail);
+                        }
+                    }
+                }
+                _ => return Err(ParseError::HeadTail),
+            }
+        }
 
         Ok(Message {
             m_type: msg,

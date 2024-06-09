@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(error_in_core)]
 
 //use embedded_io::{Read, Write};
 use crate::message::ParseError;
@@ -92,14 +91,14 @@ where
         }
     }
 
-    pub async fn read_sensor_passive(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
+    pub async fn read_sensor_active(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
         match self.get_reply().await?.m_type {
             MessageType::Query(data) => Ok(data.expect("replies always contain data")),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
 
-    pub async fn read_sensor_active(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
+    pub async fn read_sensor_query(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
         self.send_message(MessageType::Query(None)).await?;
 
         match self.get_reply().await?.m_type {
@@ -128,12 +127,49 @@ where
         }
     }
 
+    pub async fn set_runmode_query(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+        let r = Reporting::new_set(ReportingMode::Query);
+        self.send_message(MessageType::ReportingMode(r)).await?;
+
+        match self.get_reply().await?.m_type {
+            MessageType::ReportingMode(r) => match r.mode() {
+                ReportingMode::Query => Ok(()),
+                _ => Err(SDS011Error::OperationFailed),
+            },
+            _ => Err(SDS011Error::UnexpectedType),
+        }
+    }
+
+    pub async fn set_runmode_active(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+        let r = Reporting::new_set(ReportingMode::Active);
+        self.send_message(MessageType::ReportingMode(r)).await?;
+
+        match self.get_reply().await?.m_type {
+            MessageType::ReportingMode(r) => match r.mode() {
+                ReportingMode::Active => Ok(()),
+                _ => Err(SDS011Error::OperationFailed),
+            },
+            _ => Err(SDS011Error::UnexpectedType),
+        }
+    }
+
     pub async fn get_period(&mut self) -> Result<u8, SDS011Error<RW::Error>> {
         let w = WorkingPeriod::new_query();
         self.send_message(MessageType::WorkingPeriod(w)).await?;
 
         match self.get_reply().await?.m_type {
             MessageType::WorkingPeriod(data) => Ok(data.period()),
+            _ => Err(SDS011Error::UnexpectedType),
+        }
+    }
+
+    pub async fn set_period(&mut self, minutes: u8) -> Result<(), SDS011Error<RW::Error>> {
+        let w = WorkingPeriod::new_set(minutes);
+        self.send_message(MessageType::WorkingPeriod(w)).await?;
+
+        match self.get_reply().await?.m_type {
+            MessageType::WorkingPeriod(data) if data.period() == minutes => Ok(()),
+            MessageType::WorkingPeriod(_) => Err(SDS011Error::OperationFailed),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -148,46 +184,27 @@ where
         }
     }
 
-    pub async fn set_sleep(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+    pub async fn sleep(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let s = Sleep::new_set(SleepMode::Sleep);
-        self.send_message(MessageType::Sleep(s)).await
+        self.send_message(MessageType::Sleep(s)).await?;
 
-        // no response expected
+        // quirky response (FF instead of AB byte)
+        match self.get_reply().await?.m_type {
+            MessageType::Sleep(s) => match s.sleep_mode() {
+                SleepMode::Sleep => Ok(()),
+                _ => Err(SDS011Error::OperationFailed),
+            },
+            _ => Err(SDS011Error::UnexpectedType),
+        }
     }
 
-    pub async fn set_work(&mut self) -> Result<(), SDS011Error<RW::Error>> {
+    pub async fn wake(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let s = Sleep::new_set(SleepMode::Work);
         self.send_message(MessageType::Sleep(s)).await?;
 
         match self.get_reply().await?.m_type {
             MessageType::Sleep(s) => match s.sleep_mode() {
                 SleepMode::Work => Ok(()),
-                _ => Err(SDS011Error::OperationFailed),
-            },
-            _ => Err(SDS011Error::UnexpectedType),
-        }
-    }
-
-    pub async fn set_query_mode(&mut self) -> Result<(), SDS011Error<RW::Error>> {
-        let r = Reporting::new_set(ReportingMode::Query);
-        self.send_message(MessageType::ReportingMode(r)).await?;
-
-        match self.get_reply().await?.m_type {
-            MessageType::ReportingMode(r) => match r.mode() {
-                ReportingMode::Query => Ok(()),
-                _ => Err(SDS011Error::OperationFailed),
-            },
-            _ => Err(SDS011Error::UnexpectedType),
-        }
-    }
-
-    pub async fn set_active_mode(&mut self) -> Result<(), SDS011Error<RW::Error>> {
-        let r = Reporting::new_set(ReportingMode::Active);
-        self.send_message(MessageType::ReportingMode(r)).await?;
-
-        match self.get_reply().await?.m_type {
-            MessageType::ReportingMode(r) => match r.mode() {
-                ReportingMode::Active => Ok(()),
                 _ => Err(SDS011Error::OperationFailed),
             },
             _ => Err(SDS011Error::UnexpectedType),

@@ -24,11 +24,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // let sleep = sensor.get_sleep();
     // println!("sleep status: {sleep:?}");
 
-    sensor.set_work().await?;
+    sensor.wake().await?;
 
     sleep(Duration::from_secs(10)).await;
 
-    let vals = sensor.read_sensor_active().await?;
+    let vals = sensor.read_sensor_query().await?;
     println!(
         "PM2.5: {} µg/m3 \t PM10: {} µg/m3",
         vals.pm25(),
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let sleep = sensor.get_sleep().await?;
     println!("sleep status: {sleep:?}");
 
-    sensor.set_sleep().await?;
+    sensor.sleep().await?;
 
     //sensor.set_query_mode();
 
