@@ -56,18 +56,18 @@ impl<E> Error for SDS011Error<E> {}
 mod sensor_trait {
     pub trait SensorState {}
 
-    pub struct Active;
-    impl SensorState for Active {}
+    pub struct Periodic;
+    impl SensorState for Periodic {}
 
-    pub struct Query;
-    impl SensorState for Query {}
+    pub struct Polling;
+    impl SensorState for Polling {}
 
     pub struct Uninitialized;
     impl SensorState for Uninitialized {}
 }
 
 use sensor_trait::SensorState;
-use sensor_trait::{Active, Query, Uninitialized};
+use sensor_trait::{Periodic, Polling, Uninitialized};
 
 pub struct SDS011<RW, S: SensorState> {
     serial: RW,
@@ -235,7 +235,7 @@ where
     pub async fn init<D: DelayNs>(
         mut self,
         delay: &mut D,
-    ) -> Result<SDS011<RW, Query>, SDS011Error<RW::Error>> {
+    ) -> Result<SDS011<RW, Polling>, SDS011Error<RW::Error>> {
         self.wake().await?;
         self.set_runmode_query().await?;
         self.sleep().await?;
@@ -243,7 +243,7 @@ where
         // sleep a short moment to make sure the sensor is ready (todo: make configurable)
         delay.delay_ms(1_000).await;
 
-        Ok(SDS011::<RW, Query> {
+        Ok(SDS011::<RW, Polling> {
             serial: self.serial,
             sensor_id: self.sensor_id,
             _state: PhantomData,
@@ -251,7 +251,7 @@ where
     }
 }
 
-impl<RW> SDS011<RW, Active>
+impl<RW> SDS011<RW, Periodic>
 where
     RW: Read + Write,
 {
@@ -260,12 +260,12 @@ where
         self.read_sensor(false).await
     }
 
-    pub async fn make_polling(self) -> Result<SDS011<RW, Query>, SDS011Error<RW::Error>> {
+    pub async fn make_polling(self) -> Result<SDS011<RW, Polling>, SDS011Error<RW::Error>> {
         unimplemented!("instead of make_polling, re-initialize the sensor.")
     }
 }
 
-impl<RW> SDS011<RW, Query>
+impl<RW> SDS011<RW, Polling>
 where
     RW: Read + Write,
 {
@@ -302,14 +302,14 @@ where
 
     pub async fn make_periodic(
         mut self,
-        period: u8,
-    ) -> Result<SDS011<RW, Active>, SDS011Error<RW::Error>> {
+        minutes: u8,
+    ) -> Result<SDS011<RW, Periodic>, SDS011Error<RW::Error>> {
         self.wake().await?;
         // todo: check period validity somewhere
-        self.set_period(period).await?;
+        self.set_period(minutes).await?;
         self.set_runmode_active().await?;
 
-        Ok(SDS011::<RW, Active> {
+        Ok(SDS011::<RW, Periodic> {
             serial: self.serial,
             sensor_id: self.sensor_id,
             _state: PhantomData,

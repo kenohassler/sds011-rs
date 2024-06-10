@@ -28,40 +28,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut adapter = FromTokio::new(serial);
     let sensor = SDS011::new(&mut adapter);
 
-    // sensor.set_sleep();
-
-    // let sleep = sensor.get_sleep();
-    // println!("sleep status: {sleep:?}");
-
+    // initialize (sets the sensor into Polling state)
     let mut sensor = sensor.init(&mut Delay).await?;
     println!("init success!");
 
-    // sleep(Duration::from_secs(10)).await;
-
+    // read the sensor
     let vals = sensor.measure(&mut Delay).await?;
-    println!(
-        "PM2.5: {} µg/m3 \t PM10: {} µg/m3",
-        vals.pm25(),
-        vals.pm10()
-    );
+    println!("{vals}");
 
-    // _ = sensor.set_query_mode();
-
+    // just for fun: get the firmware version
     let fw = sensor.version(&mut Delay).await?;
     println!("FW version: {fw}");
 
-    //let rep_md = sensor.get_runmode().await?;
-    //println!("reporting mode: {rep_md:?}");
+    // now, put the sensor into periodic state (reports every 5 minutes)
+    let mut sensor = sensor.make_periodic(5).await?;
 
-    //let period = sensor.get_period().await?;
-    //println!("measuring period: {period} mins");
-
-    //let sleep = sensor.get_sleep().await?;
-    //println!("sleep status: {sleep:?}");
-
-    //sensor.set_sleep().await?;
-
-    //sensor.set_query_mode();
-
-    Ok(())
+    loop {
+        let res = sensor.measure().await?;
+        println!("{res}");
+    }
 }

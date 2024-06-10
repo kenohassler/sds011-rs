@@ -44,6 +44,19 @@ pub struct Measurement {
     pm10: u16,
 }
 
+impl Display for Measurement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        let pm25: f32 = self.pm25.into();
+        let pm10: f32 = self.pm10.into();
+
+        f.write_fmt(format_args!(
+            "PM2.5: {} µg/m3, PM10: {} µg/m3",
+            pm25 / 10.0,
+            pm10 / 10.0
+        ))
+    }
+}
+
 impl Measurement {
     fn from_bytes(data: &[u8]) -> Self {
         Measurement {
@@ -52,14 +65,12 @@ impl Measurement {
         }
     }
 
-    pub fn pm25(&self) -> f32 {
-        let pm25: f32 = self.pm25.into();
-        pm25 / 10.0
+    pub fn pm25(&self) -> u16 {
+        self.pm25
     }
 
-    pub fn pm10(&self) -> f32 {
-        let pm10: f32 = self.pm10.into();
-        pm10 / 10.0
+    pub fn pm10(&self) -> u16 {
+        self.pm10
     }
 }
 
