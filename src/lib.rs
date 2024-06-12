@@ -68,6 +68,8 @@ pub enum SDS011Error<E> {
     UnexpectedType,
     /// The requested operation failed.
     OperationFailed,
+    /// The given parameters were invalid.
+    Invalid,
 }
 
 impl<E> Display for SDS011Error<E> {
@@ -80,6 +82,7 @@ impl<E> Display for SDS011Error<E> {
             SDS011Error::ShortWrite => f.write_str("Short write"),
             SDS011Error::UnexpectedType => f.write_str("Unexpected message type"),
             SDS011Error::OperationFailed => f.write_str("The requested operation failed"),
+            SDS011Error::Invalid => f.write_str("The given parameters were invalid"),
         }
     }
 }
@@ -114,8 +117,9 @@ use sensor_trait::{Periodic, Polling, Uninitialized};
 /// before it can be used.
 pub struct SDS011<RW, S: SensorState> {
     serial: RW,
-    sensor_id: Option<u16>,
     config: Config,
+    sensor_id: Option<u16>,
+    firmware: Option<FirmwareVersion>,
     _state: PhantomData<S>,
 }
 
@@ -159,11 +163,13 @@ where
         }
     }
 
-    async fn get_firmware(&mut self) -> Result<FirmwareVersion, SDS011Error<RW::Error>> {
+    async fn get_firmware(&mut self) -> Result<(u16, FirmwareVersion), SDS011Error<RW::Error>> {
         self.send_message(MessageType::FWVersion(None)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::FWVersion(data) => Ok(data.expect("replies always contain data")),
+        let reply = self.get_reply().await?;
+        let id = reply.sensor_id.expect("replies always contain data");
+        match reply.m_type {
+            MessageType::FWVersion(data) => Ok((id, data.expect("replies always contain data"))),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -261,27 +267,44 @@ where
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
+
+    /// Get the sensor's ID (**panics** if sensor is uninitialized).
+    pub fn id(&self) -> u16 {
+        self.sensor_id.expect("sensor uninitialized")
+    }
+
+    /// Get the sensor's firmware version (**panics** if sensor is uninitialized).
+    pub fn version(&self) -> FirmwareVersion {
+        self.firmware.clone().expect("sensor uninitialized")
+    }
 }
 
 impl<RW> SDS011<RW, Uninitialized>
 where
     RW: Read + Write,
 {
+    /// Create a new sensor instance, consuming the serial interface.
+    /// The returned instance needs to be initialized before use.
     pub fn new(serial: RW, config: Config) -> Self {
         SDS011::<RW, Uninitialized> {
             serial,
-            sensor_id: None,
             config,
+            sensor_id: None,
+            firmware: None,
             _state: PhantomData,
         }
     }
 
+    /// Put the sensor in a well-defined state (sleeping in polling mode).
     pub async fn init<D: DelayNs>(
         mut self,
         delay: &mut D,
     ) -> Result<SDS011<RW, Polling>, SDS011Error<RW::Error>> {
         self.wake().await?;
         self.set_runmode_query().await?;
+
+        // while we're at it, read the firmware version once
+        let (id, firmware) = self.get_firmware().await?;
         self.sleep().await?;
 
         // sleep a short moment to make sure the sensor is ready
@@ -289,8 +312,9 @@ where
 
         Ok(SDS011::<RW, Polling> {
             serial: self.serial,
-            sensor_id: self.sensor_id,
             config: self.config,
+            sensor_id: Some(id),
+            firmware: Some(firmware),
             _state: PhantomData,
         })
     }
@@ -300,8 +324,10 @@ impl<RW> SDS011<RW, Periodic>
 where
     RW: Read + Write,
 {
+    /// In this state, the sensor will wake up periodically (as configured),
+    /// wait 30 seconds, send a measurement over serial, and go back to sleep.
+    /// This method waits until data is available before returning.
     pub async fn measure(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
-        // waits for internal WorkingPeriod, then sends measurement
         self.read_sensor(false).await
     }
 }
@@ -310,13 +336,17 @@ impl<RW> SDS011<RW, Polling>
 where
     RW: Read + Write,
 {
+    /// In this state, measurements are triggered by calling this function.
+    /// The sensor is woken up and the fan spins for the configured delay time,
+    /// after which we send the measurement query and put it back to sleep.
     pub async fn measure<D: DelayNs>(
         &mut self,
         delay: &mut D,
     ) -> Result<Measurement, SDS011Error<RW::Error>> {
         self.wake().await?;
 
-        // need to spin up for a few secs before measurement
+        // do a dummy measurement, spin for a few secs, then do real measurement
+        _ = self.read_sensor(true).await?;
         delay.delay_ms(self.config.measure_delay).await;
         let res = self.read_sensor(true).await?;
         self.sleep().await?;
@@ -327,33 +357,26 @@ where
         Ok(res)
     }
 
-    pub async fn version<D: DelayNs>(
-        &mut self,
-        delay: &mut D,
-    ) -> Result<FirmwareVersion, SDS011Error<RW::Error>> {
-        self.wake().await?;
-        let res = self.get_firmware().await?;
-        self.sleep().await?;
-
-        // sleep a short moment to make sure the sensor is ready
-        delay.delay_ms(self.config.sleep_delay).await;
-
-        Ok(res)
-    }
-
+    /// Set the sensor into periodic measurement mode, in which it performs
+    /// a measurement every 0-30 `minutes`.
+    /// If > 0, the sensor will go to sleep between measurements.
     pub async fn make_periodic(
         mut self,
         minutes: u8,
     ) -> Result<SDS011<RW, Periodic>, SDS011Error<RW::Error>> {
+        if minutes > 30 {
+            return Err(SDS011Error::Invalid);
+        }
+
         self.wake().await?;
-        // todo: check period validity somewhere
         self.set_period(minutes).await?;
         self.set_runmode_active().await?;
 
         Ok(SDS011::<RW, Periodic> {
             serial: self.serial,
-            sensor_id: self.sensor_id,
             config: self.config,
+            sensor_id: self.sensor_id,
+            firmware: self.firmware,
             _state: PhantomData,
         })
     }

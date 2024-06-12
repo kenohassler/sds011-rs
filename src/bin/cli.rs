@@ -28,17 +28,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut adapter = FromTokio::new(serial);
     let sensor = SDS011::new(&mut adapter, Config::default());
 
-    // initialize (sets the sensor into Polling state)
+    // initialize (puts the sensor into Polling state)
     let mut sensor = sensor.init(&mut Delay).await?;
-    println!("init success!");
+    let fw = sensor.version();
+    let id = sensor.id();
+    println!("SDS011, ID: {id}, Firmware: {fw}");
 
-    // read the sensor
+    // read the sensor once
     let vals = sensor.measure(&mut Delay).await?;
     println!("{vals}");
-
-    // just for fun: get the firmware version
-    let fw = sensor.version(&mut Delay).await?;
-    println!("FW version: {fw}");
 
     // now, put the sensor into periodic state (reports every 5 minutes)
     let mut sensor = sensor.make_periodic(5).await?;

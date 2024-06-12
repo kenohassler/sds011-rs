@@ -66,12 +66,12 @@ impl Measurement {
         }
     }
 
-    /// Retreive the PM2.5 fine dust value. Divide by ten to get µg/m3.
+    /// Retrieve the PM2.5 fine dust value. Divide by ten to get µg/m3.
     pub fn pm25(&self) -> u16 {
         self.pm25
     }
 
-    /// Retreive the PM10 fine dust value. Divide by ten to get µg/m3.
+    /// Retrieve the PM10 fine dust value. Divide by ten to get µg/m3.
     pub fn pm10(&self) -> u16 {
         self.pm10
     }
@@ -301,7 +301,7 @@ impl WorkingPeriod {
 }
 
 /// The firmware version of the sensor.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct FirmwareVersion {
     year: u8,
     month: u8,
