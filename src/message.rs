@@ -38,6 +38,7 @@ impl Display for ParseError {
 
 impl Error for ParseError {}
 
+/// A measurement of PM2.5 and PM10 fine dust pollution.
 #[derive(Debug)]
 pub struct Measurement {
     pm25: u16,
@@ -65,10 +66,12 @@ impl Measurement {
         }
     }
 
+    /// Retreive the PM2.5 fine dust value. Divide by ten to get µg/m3.
     pub fn pm25(&self) -> u16 {
         self.pm25
     }
 
+    /// Retreive the PM10 fine dust value. Divide by ten to get µg/m3.
     pub fn pm10(&self) -> u16 {
         self.pm10
     }
@@ -297,14 +300,15 @@ impl WorkingPeriod {
     }
 }
 
+/// The firmware version of the sensor.
 #[derive(Debug, PartialEq)]
-pub struct Version {
+pub struct FirmwareVersion {
     year: u8,
     month: u8,
     day: u8,
 }
 
-impl Display for Version {
+impl Display for FirmwareVersion {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!(
             "{}.{:02}.{:02}",
@@ -315,9 +319,9 @@ impl Display for Version {
     }
 }
 
-impl Version {
+impl FirmwareVersion {
     fn from_bytes(data: &[u8]) -> Self {
-        Version {
+        FirmwareVersion {
             year: data[3],
             month: data[4],
             day: data[5],
@@ -331,7 +335,7 @@ pub enum MessageType {
     SetDeviceID(NewDeviceID),
     Sleep(Sleep),
     WorkingPeriod(WorkingPeriod),
-    FirmwareVersion(Option<Version>),
+    FWVersion(Option<FirmwareVersion>),
 }
 
 impl MessageType {
@@ -343,7 +347,7 @@ impl MessageType {
                 5 => Ok(MessageType::SetDeviceID(NewDeviceID::from_bytes(data))),
                 6 => Ok(MessageType::Sleep(Sleep::from_bytes(data)?)),
                 8 => Ok(MessageType::WorkingPeriod(WorkingPeriod::from_bytes(data)?)),
-                7 => Ok(MessageType::FirmwareVersion(Some(Version::from_bytes(
+                7 => Ok(MessageType::FWVersion(Some(FirmwareVersion::from_bytes(
                     data,
                 )))),
                 s => Err(ParseError::SubCommand(s)),
@@ -371,7 +375,7 @@ impl MessageType {
                 w.populate_query(data);
                 8
             }
-            MessageType::FirmwareVersion(_) => 7,
+            MessageType::FWVersion(_) => 7,
         };
 
         data[1] = 0xB4;

@@ -2,7 +2,7 @@ use embedded_hal_async::delay::DelayNs;
 //use embedded_io_adapters::std::FromStd;
 use embedded_io_adapters::tokio_1::FromTokio;
 use inquire::Select;
-use sds011::SDS011;
+use sds011::{Config, SDS011};
 use std::error::Error;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let serial = SerialStream::open(&builder)?;
 
     let mut adapter = FromTokio::new(serial);
-    let sensor = SDS011::new(&mut adapter);
+    let sensor = SDS011::new(&mut adapter, Config::default());
 
     // initialize (sets the sensor into Polling state)
     let mut sensor = sensor.init(&mut Delay).await?;

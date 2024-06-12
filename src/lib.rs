@@ -7,27 +7,66 @@ use core::fmt::{Debug, Display, Formatter};
 use core::marker::PhantomData;
 use embedded_hal_async::delay::DelayNs;
 use embedded_io_async::{Read, Write};
-use message::Measurement;
+pub use message::FirmwareVersion;
+pub use message::Measurement;
 use message::Message;
 use message::MessageType;
 use message::Reporting;
 use message::ReportingMode;
 use message::Sleep;
 use message::SleepMode;
-use message::Version;
 use message::WorkingPeriod;
 
 mod message;
 
+/// The expected receive message length.
+/// This is needed for buffer configuration in some UART implementations,
+/// else `read()` calls block forever waiting for more data.
 pub const RX_MSG_LEN: usize = 10;
 
+/// Sensor configuration, specifically delay times.
+/// A delay is necessary between waking up the sensor
+/// and reading its value to stabilize the measurement.
+pub struct Config {
+    /// delay after sleep(), in milliseconds
+    sleep_delay: u32,
+    /// delay after wake() before a measurement is taken, in milliseconds
+    measure_delay: u32,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            sleep_delay: 500,
+            measure_delay: 30_000,
+        }
+    }
+}
+
+impl Config {
+    /// Configure the time between waking the sensor (spinning up the fan)
+    /// and reading the measurement, in milliseconds.
+    /// The sensor manual recommends 30 seconds, which is the default.
+    pub fn set_measure_delay(&mut self, measure_delay: u32) {
+        self.measure_delay = measure_delay;
+    }
+}
+
+/// Error type for operations on the SDS011 sensor.
 pub enum SDS011Error<E> {
+    /// The received message could not be decoded.
     ParseError(ParseError),
+    /// The serial interface returned an error while reading.
     ReadError(E),
+    /// The serial interface returned an error while writing.
     WriteError(E),
+    /// We received a message shorter than the fixed message length (10 bytes).
     ShortRead,
+    /// We're unable to send the full message (19 bytes) at once.
     ShortWrite,
+    /// The received message was not expected in the current sensor state.
     UnexpectedType,
+    /// The requested operation failed.
     OperationFailed,
 }
 
@@ -69,9 +108,14 @@ mod sensor_trait {
 use sensor_trait::SensorState;
 use sensor_trait::{Periodic, Polling, Uninitialized};
 
+/// The main struct.
+/// Wraps around a serial interface that implements embedded-io-async.
+/// You need to call `init` to put the sensor into a well-defined state
+/// before it can be used.
 pub struct SDS011<RW, S: SensorState> {
     serial: RW,
     sensor_id: Option<u16>,
+    config: Config,
     _state: PhantomData<S>,
 }
 
@@ -115,12 +159,11 @@ where
         }
     }
 
-    async fn get_firmware(&mut self) -> Result<Version, SDS011Error<RW::Error>> {
-        self.send_message(MessageType::FirmwareVersion(None))
-            .await?;
+    async fn get_firmware(&mut self) -> Result<FirmwareVersion, SDS011Error<RW::Error>> {
+        self.send_message(MessageType::FWVersion(None)).await?;
 
         match self.get_reply().await?.m_type {
-            MessageType::FirmwareVersion(data) => Ok(data.expect("replies always contain data")),
+            MessageType::FWVersion(data) => Ok(data.expect("replies always contain data")),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -224,10 +267,11 @@ impl<RW> SDS011<RW, Uninitialized>
 where
     RW: Read + Write,
 {
-    pub fn new(serial: RW) -> Self {
+    pub fn new(serial: RW, config: Config) -> Self {
         SDS011::<RW, Uninitialized> {
             serial,
             sensor_id: None,
+            config,
             _state: PhantomData,
         }
     }
@@ -240,12 +284,13 @@ where
         self.set_runmode_query().await?;
         self.sleep().await?;
 
-        // sleep a short moment to make sure the sensor is ready (todo: make configurable)
-        delay.delay_ms(1_000).await;
+        // sleep a short moment to make sure the sensor is ready
+        delay.delay_ms(self.config.sleep_delay).await;
 
         Ok(SDS011::<RW, Polling> {
             serial: self.serial,
             sensor_id: self.sensor_id,
+            config: self.config,
             _state: PhantomData,
         })
     }
@@ -258,10 +303,6 @@ where
     pub async fn measure(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
         // waits for internal WorkingPeriod, then sends measurement
         self.read_sensor(false).await
-    }
-
-    pub async fn make_polling(self) -> Result<SDS011<RW, Polling>, SDS011Error<RW::Error>> {
-        unimplemented!("instead of make_polling, re-initialize the sensor.")
     }
 }
 
@@ -276,12 +317,12 @@ where
         self.wake().await?;
 
         // need to spin up for a few secs before measurement
-        delay.delay_ms(10_000).await;
+        delay.delay_ms(self.config.measure_delay).await;
         let res = self.read_sensor(true).await?;
         self.sleep().await?;
 
-        // sleep a short moment to make sure the sensor is ready (todo: make configurable)
-        delay.delay_ms(1_000).await;
+        // sleep a short moment to make sure the sensor is ready
+        delay.delay_ms(self.config.sleep_delay).await;
 
         Ok(res)
     }
@@ -289,13 +330,13 @@ where
     pub async fn version<D: DelayNs>(
         &mut self,
         delay: &mut D,
-    ) -> Result<Version, SDS011Error<RW::Error>> {
+    ) -> Result<FirmwareVersion, SDS011Error<RW::Error>> {
         self.wake().await?;
         let res = self.get_firmware().await?;
         self.sleep().await?;
 
-        // sleep a short moment to make sure the sensor is ready (todo: make configurable)
-        delay.delay_ms(1_000).await;
+        // sleep a short moment to make sure the sensor is ready
+        delay.delay_ms(self.config.sleep_delay).await;
 
         Ok(res)
     }
@@ -312,6 +353,7 @@ where
         Ok(SDS011::<RW, Periodic> {
             serial: self.serial,
             sensor_id: self.sensor_id,
+            config: self.config,
             _state: PhantomData,
         })
     }
