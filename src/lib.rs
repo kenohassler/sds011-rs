@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(error_in_core)]
 
 //use embedded_io::{Read, Write};
 use crate::message::ParseError;
@@ -47,8 +48,9 @@ impl Config {
     /// Configure the time between waking the sensor (spinning up the fan)
     /// and reading the measurement, in milliseconds.
     /// The sensor manual recommends 30 seconds, which is the default.
-    pub fn set_measure_delay(&mut self, measure_delay: u32) {
+    pub fn set_measure_delay(mut self, measure_delay: u32) -> Self {
         self.measure_delay = measure_delay;
+        self
     }
 }
 
