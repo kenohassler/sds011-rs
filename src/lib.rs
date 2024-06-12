@@ -21,17 +21,17 @@ use message::WorkingPeriod;
 mod message;
 
 /// The expected receive message length.
+///
 /// This is needed for buffer configuration in some UART implementations,
 /// else `read()` calls block forever waiting for more data.
-pub const RX_MSG_LEN: usize = 10;
+pub const READ_BUF_SIZE: usize = 10;
 
 /// Sensor configuration, specifically delay times.
-/// A delay is necessary between waking up the sensor
+/// 
+/// Delays are necessary between waking up the sensor
 /// and reading its value to stabilize the measurement.
 pub struct Config {
-    /// delay after sleep(), in milliseconds
     sleep_delay: u32,
-    /// delay after wake() before a measurement is taken, in milliseconds
     measure_delay: u32,
 }
 
@@ -50,6 +50,13 @@ impl Config {
     /// The sensor manual recommends 30 seconds, which is the default.
     pub fn set_measure_delay(mut self, measure_delay: u32) -> Self {
         self.measure_delay = measure_delay;
+        self
+    }
+
+    /// How many milliseconds to wait before waking the sensor; defaults to 500.
+    /// Setting this too low can result in the sensor not coming up (boot time?)
+    pub fn set_sleep_delay(mut self, sleep_delay: u32) -> Self {
+        self.sleep_delay = sleep_delay;
         self
     }
 }
@@ -115,8 +122,9 @@ use sensor_trait::{Periodic, Polling, Uninitialized};
 
 /// The main struct.
 /// Wraps around a serial interface that implements embedded-io-async.
-/// You need to call `init` to put the sensor into a well-defined state
-/// before it can be used.
+///
+/// Calling `new()` will give you an uninitialized struct.
+/// You need to call `init()` on it to get a sensor that can be polled.
 pub struct SDS011<RW, S: SensorState> {
     serial: RW,
     config: Config,
@@ -131,7 +139,7 @@ where
     S: SensorState,
 {
     async fn get_reply(&mut self) -> Result<Message, SDS011Error<RW::Error>> {
-        let mut buf = [0u8; RX_MSG_LEN];
+        let mut buf = [0u8; READ_BUF_SIZE];
 
         match self.serial.read(&mut buf).await {
             Ok(n) if n == buf.len() => match Message::parse_reply(&buf) {
@@ -302,15 +310,15 @@ where
         mut self,
         delay: &mut D,
     ) -> Result<SDS011<RW, Polling>, SDS011Error<RW::Error>> {
+        // sleep a short moment to make sure the sensor is ready
+        delay.delay_ms(self.config.sleep_delay).await;
         self.wake().await?;
+        
         self.set_runmode_query().await?;
 
         // while we're at it, read the firmware version once
         let (id, firmware) = self.get_firmware().await?;
         self.sleep().await?;
-
-        // sleep a short moment to make sure the sensor is ready
-        delay.delay_ms(self.config.sleep_delay).await;
 
         Ok(SDS011::<RW, Polling> {
             serial: self.serial,
@@ -345,6 +353,8 @@ where
         &mut self,
         delay: &mut D,
     ) -> Result<Measurement, SDS011Error<RW::Error>> {
+        // sleep a short moment to make sure the sensor is ready
+        delay.delay_ms(self.config.sleep_delay).await;
         self.wake().await?;
 
         // do a dummy measurement, spin for a few secs, then do real measurement
@@ -352,9 +362,6 @@ where
         delay.delay_ms(self.config.measure_delay).await;
         let res = self.read_sensor(true).await?;
         self.sleep().await?;
-
-        // sleep a short moment to make sure the sensor is ready
-        delay.delay_ms(self.config.sleep_delay).await;
 
         Ok(res)
     }
