@@ -27,7 +27,7 @@ mod message;
 pub const READ_BUF_SIZE: usize = 10;
 
 /// Sensor configuration, specifically delay times.
-/// 
+///
 /// Delays are necessary between waking up the sensor
 /// and reading its value to stabilize the measurement.
 pub struct Config {
@@ -313,7 +313,7 @@ where
         // sleep a short moment to make sure the sensor is ready
         delay.delay_ms(self.config.sleep_delay).await;
         self.wake().await?;
-        
+
         self.set_runmode_query().await?;
 
         // while we're at it, read the firmware version once
@@ -369,15 +369,19 @@ where
     /// Set the sensor into periodic measurement mode, in which it performs
     /// a measurement every 0-30 `minutes`.
     /// If > 0, the sensor will go to sleep between measurements.
-    pub async fn make_periodic(
+    pub async fn make_periodic<D: DelayNs>(
         mut self,
+        delay: &mut D,
         minutes: u8,
     ) -> Result<SDS011<RW, Periodic>, SDS011Error<RW::Error>> {
         if minutes > 30 {
             return Err(SDS011Error::Invalid);
         }
 
+        // sleep a short moment to make sure the sensor is ready
+        delay.delay_ms(self.config.sleep_delay).await;
         self.wake().await?;
+
         self.set_period(minutes).await?;
         self.set_runmode_active().await?;
 
