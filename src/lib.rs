@@ -1,9 +1,8 @@
-//! # SDS011
 //! This crate implements an embedded-io driver for the SDS011 particle sensor.
 //! Thanks to this abstraction layer, it can be used on full-fledged operating
 //! systems as well as embedded devices.
 //!
-//! ### Examples
+//! # Examples
 //! The crate ships with two small CLI binaries that utilize the library:
 //! * [cli.rs](src/bin/cli.rs) shows the synchronous interface (embedded-io)
 //! * [cli_async.rs](src/bin/cli_async.rs) uses the asynchronous interface
@@ -65,7 +64,7 @@
 //! }
 //! ```
 //!
-//! ### Technical Overview
+//! # Technical Overview
 //! The sensor has two operating modes:
 //! * "query mode": The sensor does nothing until it is actively instructed to
 //!   perform a measurement (we call this polling).
@@ -88,7 +87,7 @@
 //!   Since it will continuously produce data, make sure to call `measure()`
 //!   in time so the serial output buffer does not overflow.
 //!
-//! ### Limitations
+//! # Limitations
 //! This abstraction does not yet support sending commands only to a specific
 //! sensor id (it effectively uses broadcast mode all the time).
 //! This feature seemed irrelevant, but the backend code for it is completely
@@ -98,12 +97,12 @@
 //! return an error. Close the serial port and retry, or probably better,
 //! just don't use periodic mode.
 //!
-//! ### Acknowledgements
+//! # Acknowledgements
 //! Thank you to Tim Orme, who implemented sds011lib in Python
 //! and wrote [documentation](https://timorme.github.io/sds011lib/resource/)
 //! that pointed me in the right direction, especially to:
-//! * [the data sheet](https://cdn-reichelt.de/documents/datenblatt/X200/SDS011-DATASHEET.pdf)
-//! * [the control protocol](https://cdn.sparkfun.com/assets/parts/1/2/2/7/5/Laser_Dust_Sensor_Control_Protocol_V1.3.pdf)
+//! * [The Data Sheet](https://cdn-reichelt.de/documents/datenblatt/X200/SDS011-DATASHEET.pdf)
+//! * [The Control Protocol](https://cdn.sparkfun.com/assets/parts/1/2/2/7/5/Laser_Dust_Sensor_Control_Protocol_V1.3.pdf)
 
 #![no_std]
 #![feature(error_in_core)]

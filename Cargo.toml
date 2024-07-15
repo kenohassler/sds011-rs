@@ -3,7 +3,7 @@ name = "sds011-rs"
 version = "0.1.0"
 authors = ["Keno Hassler"]
 edition = "2021"
-description = "A driver for the SDS011 particle sensor based on embedded_io."
+description = "A driver for the SDS011 particle sensor based on embedded-io."
 license = "MIT OR Apache-2.0"
 keywords = ["embedded-hal", "async"]
 
