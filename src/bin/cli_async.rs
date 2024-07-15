@@ -1,22 +1,22 @@
 use clap::Parser;
-use embedded_hal::delay::DelayNs;
-use embedded_io_adapters::std::FromStd;
+use embedded_hal_async::delay::DelayNs;
+use embedded_io_adapters::tokio_1::FromTokio;
 use inquire::Select;
 use sds011::{Config, SDS011};
-use serialport;
 use std::error::Error;
-use std::thread::sleep;
 use std::time::Duration;
+use tokio::time::sleep;
+use tokio_serial::SerialStream;
 
 struct Delay;
 
 impl DelayNs for Delay {
-    fn delay_ns(&mut self, n: u32) {
-        sleep(Duration::from_nanos(n.into()));
+    async fn delay_ns(&mut self, n: u32) {
+        sleep(Duration::from_nanos(n.into())).await;
     }
 }
 
-/// Simple CLI to poll the SDS011 fine particle sensor
+/// Simple CLI to poll the SDS011 fine particle sensor (async version)
 #[derive(Parser, Debug)]
 #[command(version)]
 struct Args {
@@ -27,39 +27,40 @@ struct Args {
     interval: u32,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     let ans = match args.port {
         Some(p) => p,
         None => {
-            let ports = serialport::available_ports().expect("No ports found!");
+            let ports = tokio_serial::available_ports().expect("No ports found!");
             let ports: Vec<String> = ports.into_iter().map(|p| p.port_name).collect();
             Select::new("Which serial port should be used?", ports).prompt()?
         }
     };
 
-    let builder = serialport::new(ans, 9600).timeout(Duration::from_secs(1));
-    let serial = builder.open()?;
+    let builder = tokio_serial::new(ans, 9600).timeout(Duration::from_secs(1));
+    let serial = SerialStream::open(&builder)?;
 
-    let mut adapter = FromStd::new(serial);
+    let mut adapter = FromTokio::new(serial);
     let sensor = SDS011::new(&mut adapter, Config::default());
 
     // initialize (puts the sensor into Polling state)
-    let mut sensor = sensor.init(&mut Delay)?;
+    let mut sensor = sensor.init(&mut Delay).await?;
     let fw = sensor.version();
     let id = sensor.id();
     println!("SDS011, ID: {id}, Firmware: {fw}");
 
-    let vals = sensor.measure(&mut Delay)?;
+    let vals = sensor.measure(&mut Delay).await?;
     println!("{vals}");
 
     // continuously measure every n minutes (taking 30s measurement delay into account)
     if args.interval != 0 {
         loop {
-            Delay.delay_ms((args.interval * 60 - 30) * 1000);
+            Delay.delay_ms((args.interval * 60 - 30) * 1000).await;
 
-            let vals = sensor.measure(&mut Delay)?;
+            let vals = sensor.measure(&mut Delay).await?;
             println!("{vals}");
         }
     }
