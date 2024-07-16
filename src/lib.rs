@@ -1,10 +1,15 @@
-//! This crate implements an embedded-io driver for the SDS011 particle sensor.
+//! This crate implements a driver for the SDS011 particle sensor based on
+//! [`embedded-hal`](https://github.com/rust-embedded/embedded-hal).
 //! Thanks to this abstraction layer, it can be used on full-fledged operating
 //! systems as well as embedded devices.
 //!
+//! # Features
+//! * `use_sync`: To use the synchronous interface, enable this feature.
+//!   By default, this library exposes an async API.
+//!
 //! # Examples
 //! The crate ships with two small CLI binaries that utilize the library:
-//! * [cli.rs](src/bin/cli.rs) shows the synchronous interface (embedded-io)
+//! * [cli.rs](src/bin/cli.rs) uses the synchronous interface (embedded-io),
 //! * [cli_async.rs](src/bin/cli_async.rs) uses the asynchronous interface
 //!   (embedded-io-async).
 //!
@@ -103,6 +108,8 @@
 //! that pointed me in the right direction, especially to:
 //! * [The Data Sheet](https://cdn-reichelt.de/documents/datenblatt/X200/SDS011-DATASHEET.pdf)
 //! * [The Control Protocol](https://cdn.sparkfun.com/assets/parts/1/2/2/7/5/Laser_Dust_Sensor_Control_Protocol_V1.3.pdf)
+//!
+//! for the SDS011 sensor.
 
 #![no_std]
 #![feature(error_in_core)]
