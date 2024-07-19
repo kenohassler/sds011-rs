@@ -1,6 +1,6 @@
 [package]
 name = "sds011-rs"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Keno Hassler"]
 edition = "2021"
 description = "A driver for the SDS011 particle sensor based on embedded-io."
