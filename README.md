@@ -79,17 +79,17 @@ The sensor has two operating modes:
   interval (we call this periodic).
 
 We abstract this into the following interface:
-* A sensor created using `new()` is in "Uninitialized" state.
+* A sensor created using `new()` is in `Uninitialized` state.
   No serial communication is performed during creation.
-* You call `init()`. This will return a sensor in "Polling" state.
+* You call `init()`. This will return a sensor in `Polling` state.
   The sensor is instructed via serial commands to switch to query mode and
   goes to sleep (fan off). This operation may fail.
 * The sensor can now be queried via the `measure()` function.
   This will wake the sensor, spin the fan for a configurable duration
   (which is necessary to get a correct measurement), read the sensor and
   put it back to sleep. This operation may fail.
-* Optionally (not recommended!), the sensor can be put into "Periodic" state
-  by calling `make_periodic` on a sensor in "Polling" state.
+* Optionally (not recommended!), the sensor can be put into `Periodic` state
+  by calling `make_periodic()` on a sensor in `Polling` state.
   This puts the sensor in charge of sleeping and waking up.
   Since it will continuously produce data, make sure to call `measure()`
   in time so the serial output buffer does not overflow.
