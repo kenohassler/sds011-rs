@@ -77,17 +77,17 @@
 //!   interval (we call this periodic).
 //!
 //! We abstract this into the following interface:
-//! * A sensor created using `new()` is in "Uninitialized" state.
+//! * A sensor created using `new()` is in `Uninitialized` state.
 //!   No serial communication is performed during creation.
-//! * You call `init()`. This will return a sensor in "Polling" state.
+//! * You call `init()`. This will return a sensor in `Polling` state.
 //!   The sensor is instructed via serial commands to switch to query mode and
 //!   goes to sleep (fan off). This operation may fail.
 //! * The sensor can now be queried via the `measure()` function.
 //!   This will wake the sensor, spin the fan for a configurable duration
 //!   (which is necessary to get a correct measurement), read the sensor and
 //!   put it back to sleep. This operation may fail.
-//! * Optionally (not recommended!), the sensor can be put into "Periodic" state
-//!   by calling `make_periodic` on a sensor in "Polling" state.
+//! * Optionally (not recommended!), the sensor can be put into `Periodic` state
+//!   by calling `make_periodic()` on a sensor in `Polling` state.
 //!   This puts the sensor in charge of sleeping and waking up.
 //!   Since it will continuously produce data, make sure to call `measure()`
 //!   in time so the serial output buffer does not overflow.
@@ -226,21 +226,32 @@ impl<E> Debug for SDS011Error<E> {
 
 impl<E> Error for SDS011Error<E> {}
 
-mod sensor_trait {
-    pub trait SensorState {}
+mod sensor_state {
+    mod private {
+        pub trait Sealed {}
+    }
+
+    /// Encodes state for the [SDS011] struct, as explained in the
+    /// [technical overview][crate#technical-overview].
+    ///
+    /// This trait is sealed to prevent external implementations.
+    pub trait SensorState: private::Sealed {}
 
     pub struct Periodic;
+    impl private::Sealed for Periodic {}
     impl SensorState for Periodic {}
 
     pub struct Polling;
+    impl private::Sealed for Polling {}
     impl SensorState for Polling {}
 
     pub struct Uninitialized;
+    impl private::Sealed for Uninitialized {}
     impl SensorState for Uninitialized {}
 }
 
-use sensor_trait::SensorState;
-use sensor_trait::{Periodic, Polling, Uninitialized};
+pub use sensor_state::SensorState;
+use sensor_state::{Periodic, Polling, Uninitialized};
 
 /// The main struct.
 /// Wraps around a serial interface that implements embedded-io-async.
@@ -411,16 +422,6 @@ where
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
-
-    /// Get the sensor's ID (**panics** if sensor is uninitialized).
-    pub fn id(&self) -> u16 {
-        self.sensor_id.expect("sensor uninitialized")
-    }
-
-    /// Get the sensor's firmware version (**panics** if sensor is uninitialized).
-    pub fn version(&self) -> FirmwareVersion {
-        self.firmware.clone().expect("sensor uninitialized")
-    }
 }
 
 impl<RW> SDS011<RW, Uninitialized>
@@ -476,6 +477,16 @@ where
     pub async fn measure(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
         self.read_sensor(false).await
     }
+
+    /// Get the sensor's ID.
+    pub fn id(&self) -> u16 {
+        self.sensor_id.expect("sensor is initialized")
+    }
+
+    /// Get the sensor's firmware version.
+    pub fn version(&self) -> FirmwareVersion {
+        self.firmware.clone().expect("sensor is initialized")
+    }
 }
 
 impl<RW> SDS011<RW, Polling>
@@ -530,6 +541,16 @@ where
             firmware: self.firmware,
             _state: PhantomData,
         })
+    }
+
+    /// Get the sensor's ID.
+    pub fn id(&self) -> u16 {
+        self.sensor_id.expect("sensor is initialized")
+    }
+
+    /// Get the sensor's firmware version.
+    pub fn version(&self) -> FirmwareVersion {
+        self.firmware.clone().expect("sensor is initialized")
     }
 }
 
