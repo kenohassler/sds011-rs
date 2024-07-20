@@ -226,25 +226,28 @@ impl<E> Debug for SDS011Error<E> {
 
 impl<E> Error for SDS011Error<E> {}
 
-mod sensor_state {
+pub mod sensor_state {
     mod private {
         pub trait Sealed {}
     }
 
-    /// Encodes state for the [SDS011] struct, as explained in the
-    /// [technical overview][crate#technical-overview].
+    /// Encodes state for the [SDS011](crate::SDS011) struct,
+    /// as explained in the [technical overview](crate#technical-overview).
     ///
     /// This trait is sealed to prevent external implementations.
     pub trait SensorState: private::Sealed {}
 
+    /// Sensor reports periodically
     pub struct Periodic;
     impl private::Sealed for Periodic {}
     impl SensorState for Periodic {}
 
+    /// Sensor sleeps until polled
     pub struct Polling;
     impl private::Sealed for Polling {}
     impl SensorState for Polling {}
 
+    /// Sensor not yet initialized
     pub struct Uninitialized;
     impl private::Sealed for Uninitialized {}
     impl SensorState for Uninitialized {}
