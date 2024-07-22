@@ -8,9 +8,9 @@
 //!   By default, this library exposes an async API.
 //!
 //! # Examples
-//! The crate ships with two small CLI binaries that utilize the library:
-//! * [cli.rs](src/bin/cli.rs) uses the synchronous interface (embedded-io),
-//! * [cli_async.rs](src/bin/cli_async.rs) uses the asynchronous interface
+//! The crate ships with two small CLI examples that utilize the library:
+//! * [cli.rs](examples/cli.rs) uses the synchronous interface (embedded-io),
+//! * [cli_async.rs](examples/cli_async.rs) uses the asynchronous interface
 //!   (embedded-io-async).
 //!
 //! The example below demonstrates how to use the sensor with an ESP32,
@@ -114,18 +114,17 @@
 #![no_std]
 #![feature(error_in_core)]
 
-//use embedded_io::{Read, Write};
 use crate::message::ParseError;
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 use core::marker::PhantomData;
-#[cfg(feature = "use_sync")]
+#[cfg(feature = "sync")]
 use embedded_hal::delay::DelayNs;
-#[cfg(not(feature = "use_sync"))]
+#[cfg(not(feature = "sync"))]
 use embedded_hal_async::delay::DelayNs;
-#[cfg(feature = "use_sync")]
+#[cfg(feature = "sync")]
 use embedded_io::{Read, Write};
-#[cfg(not(feature = "use_sync"))]
+#[cfg(not(feature = "sync"))]
 use embedded_io_async::{Read, Write};
 use maybe_async::maybe_async;
 pub use message::FirmwareVersion;
