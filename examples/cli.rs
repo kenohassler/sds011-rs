@@ -2,7 +2,6 @@ use embedded_hal::delay::DelayNs;
 use embedded_io_adapters::std::FromStd;
 use inquire::Select;
 use sds011::{Config, SDS011};
-use serialport;
 use std::env;
 use std::error::Error;
 use std::thread::sleep;
@@ -20,14 +19,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut args: Vec<String> = env::args().collect();
 
     // use the first arg as serial port, query interactively if not given
-    let port;
-    if args.len() == 2 {
-        port = args.pop().unwrap();
+    let port = if args.len() == 2 {
+        args.pop().unwrap()
     } else {
         let ports = tokio_serial::available_ports()?;
         let ports: Vec<String> = ports.into_iter().map(|p| p.port_name).collect();
-        port = Select::new("Which serial port should be used?", ports).prompt()?
-    }
+        Select::new("Which serial port should be used?", ports).prompt()?
+    };
 
     let builder = serialport::new(port, 9600).timeout(Duration::from_secs(1));
     let serial = builder.open()?;

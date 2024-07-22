@@ -21,14 +21,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut args: Vec<String> = env::args().collect();
 
     // use the first arg as serial port, query interactively if not given
-    let port;
-    if args.len() == 2 {
-        port = args.pop().unwrap();
+    let port = if args.len() == 2 {
+        args.pop().unwrap()
     } else {
         let ports = tokio_serial::available_ports()?;
         let ports: Vec<String> = ports.into_iter().map(|p| p.port_name).collect();
-        port = Select::new("Which serial port should be used?", ports).prompt()?
-    }
+        Select::new("Which serial port should be used?", ports).prompt()?
+    };
 
     let builder = tokio_serial::new(port, 9600).timeout(Duration::from_secs(1));
     let serial = SerialStream::open(&builder)?;

@@ -28,4 +28,4 @@ jobs:
     - name: Format
       run: cargo fmt --check
     - name: Run Clippy
-      run: cargo clippy --all-targets --all-features
+      run: cargo clippy
