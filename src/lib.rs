@@ -4,7 +4,7 @@
 //! systems as well as embedded devices.
 //!
 //! # Features
-//! * `use_sync`: To use the synchronous interface, enable this feature.
+//! * `sync`: To use the synchronous interface, enable this feature.
 //!   By default, this library exposes an async API.
 //!
 //! # Examples
