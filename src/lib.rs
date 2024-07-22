@@ -16,7 +16,7 @@
 //! The example below demonstrates how to use the sensor with an ESP32,
 //! showcasing the strength of the embedded-hal abstractions.
 //!
-//! ```rust
+//! ```ignore
 //! #![no_std]
 //! #![no_main]
 //!
