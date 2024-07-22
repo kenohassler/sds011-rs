@@ -18,7 +18,6 @@ embedded-io-async = "0.6"
 maybe-async = "0.2"
 
 [dev-dependencies]
-clap = { version = "4.5", features = ["derive"] }
 embedded-io-adapters = { version = "0.6", features = ["std", "tokio-1"] }
 inquire = "0.7"
 serialport = "4.4"

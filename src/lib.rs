@@ -113,7 +113,7 @@
 
 #![no_std]
 #![feature(error_in_core)]
-#![allow(stable_features, reason="remove this once rust 1.81 is stable")]
+#![allow(stable_features, reason = "remove this once rust 1.81 is stable")]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
