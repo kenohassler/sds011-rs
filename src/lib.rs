@@ -4,13 +4,13 @@
 //! systems as well as embedded devices.
 //!
 //! # Features
-//! * `use_sync`: To use the synchronous interface, enable this feature.
+//! * `sync`: To use the synchronous interface, enable this feature.
 //!   By default, this library exposes an async API.
 //!
 //! # Examples
-//! The crate ships with two small CLI binaries that utilize the library:
-//! * [cli.rs](src/bin/cli.rs) uses the synchronous interface (embedded-io),
-//! * [cli_async.rs](src/bin/cli_async.rs) uses the asynchronous interface
+//! The crate ships with two small CLI examples that utilize the library:
+//! * [`cli.rs`](examples/cli.rs) uses the synchronous interface (embedded-io),
+//! * [`cli_async.rs`](examples/cli_async.rs) uses the asynchronous interface
 //!   (embedded-io-async).
 //!
 //! The example below demonstrates how to use the sensor with an ESP32,
@@ -113,19 +113,19 @@
 
 #![no_std]
 #![feature(error_in_core)]
+#![warn(clippy::pedantic)]
 
-//use embedded_io::{Read, Write};
 use crate::message::ParseError;
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 use core::marker::PhantomData;
-#[cfg(feature = "use_sync")]
+#[cfg(feature = "sync")]
 use embedded_hal::delay::DelayNs;
-#[cfg(not(feature = "use_sync"))]
+#[cfg(not(feature = "sync"))]
 use embedded_hal_async::delay::DelayNs;
-#[cfg(feature = "use_sync")]
+#[cfg(feature = "sync")]
 use embedded_io::{Read, Write};
-#[cfg(not(feature = "use_sync"))]
+#[cfg(not(feature = "sync"))]
 use embedded_io_async::{Read, Write};
 use maybe_async::maybe_async;
 pub use message::FirmwareVersion;
@@ -150,6 +150,7 @@ pub const READ_BUF_SIZE: usize = 10;
 ///
 /// Delays are necessary between waking up the sensor
 /// and reading its value to stabilize the measurement.
+#[must_use]
 pub struct Config {
     sleep_delay: u32,
     measure_delay: u32,
@@ -343,7 +344,7 @@ where
         match self.get_reply().await?.m_type {
             MessageType::ReportingMode(r) => match r.mode() {
                 ReportingMode::Query => Ok(()),
-                _ => Err(SDS011Error::OperationFailed),
+                ReportingMode::Active => Err(SDS011Error::OperationFailed),
             },
             _ => Err(SDS011Error::UnexpectedType),
         }
@@ -357,7 +358,7 @@ where
         match self.get_reply().await?.m_type {
             MessageType::ReportingMode(r) => match r.mode() {
                 ReportingMode::Active => Ok(()),
-                _ => Err(SDS011Error::OperationFailed),
+                ReportingMode::Query => Err(SDS011Error::OperationFailed),
             },
             _ => Err(SDS011Error::UnexpectedType),
         }
@@ -406,7 +407,7 @@ where
         match self.get_reply().await?.m_type {
             MessageType::Sleep(s) => match s.sleep_mode() {
                 SleepMode::Sleep => Ok(()),
-                _ => Err(SDS011Error::OperationFailed),
+                SleepMode::Work => Err(SDS011Error::OperationFailed),
             },
             _ => Err(SDS011Error::UnexpectedType),
         }
@@ -420,7 +421,7 @@ where
         match self.get_reply().await?.m_type {
             MessageType::Sleep(s) => match s.sleep_mode() {
                 SleepMode::Work => Ok(()),
-                _ => Err(SDS011Error::OperationFailed),
+                SleepMode::Sleep => Err(SDS011Error::OperationFailed),
             },
             _ => Err(SDS011Error::UnexpectedType),
         }
@@ -444,6 +445,10 @@ where
     }
 
     /// Put the sensor in a well-defined state (sleeping in polling mode).
+    ///
+    /// # Errors
+    /// This communicates with the sensor over serial and may fail with any
+    /// [SDS011Error].
     #[maybe_async]
     pub async fn init<D: DelayNs>(
         mut self,
@@ -476,17 +481,23 @@ where
     /// In this state, the sensor will wake up periodically (as configured),
     /// wait 30 seconds, send a measurement over serial, and go back to sleep.
     /// This method waits until data is available before returning.
+    ///
+    /// # Errors
+    /// This communicates with the sensor over serial and may fail with any
+    /// [SDS011Error].
     #[maybe_async]
     pub async fn measure(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
         self.read_sensor(false).await
     }
 
     /// Get the sensor's ID.
+    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
     pub fn id(&self) -> u16 {
         self.sensor_id.expect("sensor is initialized")
     }
 
     /// Get the sensor's firmware version.
+    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
     pub fn version(&self) -> FirmwareVersion {
         self.firmware.clone().expect("sensor is initialized")
     }
@@ -499,6 +510,10 @@ where
     /// In this state, measurements are triggered by calling this function.
     /// The sensor is woken up and the fan spins for the configured delay time,
     /// after which we send the measurement query and put it back to sleep.
+    ///
+    /// # Errors
+    /// This communicates with the sensor over serial and may fail with any
+    /// [SDS011Error].
     #[maybe_async]
     pub async fn measure<D: DelayNs>(
         &mut self,
@@ -520,6 +535,10 @@ where
     /// Set the sensor into periodic measurement mode, in which it performs
     /// a measurement every 0-30 `minutes`.
     /// If > 0, the sensor will go to sleep between measurements.
+    ///
+    /// # Errors
+    /// This communicates with the sensor over serial and may fail with any
+    /// [SDS011Error].
     #[maybe_async]
     pub async fn make_periodic<D: DelayNs>(
         mut self,
@@ -547,11 +566,13 @@ where
     }
 
     /// Get the sensor's ID.
+    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
     pub fn id(&self) -> u16 {
         self.sensor_id.expect("sensor is initialized")
     }
 
     /// Get the sensor's firmware version.
+    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
     pub fn version(&self) -> FirmwareVersion {
         self.firmware.clone().expect("sensor is initialized")
     }

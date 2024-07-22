@@ -1,8 +1,9 @@
 [package]
 name = "sds011-rs"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Keno Hassler"]
 edition = "2021"
+#rust-version = "1.81"
 description = "A driver for the SDS011 particle sensor based on embedded-io."
 repository = "https://github.com/kenohassler/sds011-rs"
 license = "MIT OR Apache-2.0"
@@ -15,46 +16,27 @@ embedded-io = "0.6"
 embedded-io-async = "0.6"
 maybe-async = "0.2"
 
-embedded-io-adapters = { version = "0.6", optional = true, features = [
-    "std",
-    "tokio-1",
-] }
-tokio-serial = { version = "5.4", optional = true }
-tokio = { version = "1.38", optional = true, features = [
-    "macros",
-    "time",
-    "rt-multi-thread",
-] }
-inquire = { version = "0.7", optional = true }
-clap = { version = "4.5", features = ["derive"], optional = true }
-serialport = { version = "4.4", optional = true }
+[dev-dependencies]
+clap = { version = "4.5", features = ["derive"] }
+embedded-io-adapters = { version = "0.6", features = ["std", "tokio-1"] }
+inquire = "0.7"
+serialport = "4.4"
+tokio-serial = "5.4"
+tokio = { version = "1.38", features = ["macros", "time", "rt-multi-thread"] }
+
+[features]
+sync = ["maybe-async/is_sync"]
 
 
 [lib]
 name = "sds011"
 path = "src/lib.rs"
 
-[[bin]]
+[[example]]
 name = "sds011-cli-async"
-path = "src/bin/cli_async.rs"
-required-features = [
-    "embedded-io-adapters",
-    "tokio-serial",
-    "tokio",
-    "inquire",
-    "clap",
-]
+path = "examples/cli_async.rs"
 
-[[bin]]
+[[example]]
 name = "sds011-cli"
-path = "src/bin/cli.rs"
-required-features = [
-    "embedded-io-adapters",
-    "serialport",
-    "inquire",
-    "clap",
-    "use_sync",
-]
-
-[features]
-use_sync = ["maybe-async/is_sync"]
+path = "examples/cli.rs"
+required-features = ["sync"]
