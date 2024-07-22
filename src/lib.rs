@@ -81,11 +81,11 @@
 //!   No serial communication is performed during creation.
 //! * You call `init()`. This will return a sensor in `Polling` state.
 //!   The sensor is instructed via serial commands to switch to query mode and
-//!   goes to sleep (fan off). This operation may fail.
+//!   goes to sleep (fan off).
 //! * The sensor can now be queried via the `measure()` function.
 //!   This will wake the sensor, spin the fan for a configurable duration
 //!   (which is necessary to get a correct measurement), read the sensor and
-//!   put it back to sleep. This operation may fail.
+//!   put it back to sleep.
 //! * Optionally (not recommended!), the sensor can be put into `Periodic` state
 //!   by calling `make_periodic()` on a sensor in `Polling` state.
 //!   This puts the sensor in charge of sleeping and waking up.
@@ -113,7 +113,9 @@
 
 #![no_std]
 #![feature(error_in_core)]
+#![allow(stable_features, reason="remove this once rust 1.81 is stable")]
 #![warn(clippy::pedantic)]
+#![warn(clippy::cargo)]
 
 use crate::message::ParseError;
 use core::error::Error;
@@ -129,9 +131,9 @@ use embedded_io::{Read, Write};
 use embedded_io_async::{Read, Write};
 use maybe_async::maybe_async;
 pub use message::FirmwareVersion;
+use message::Kind;
 pub use message::Measurement;
 use message::Message;
-use message::MessageType;
 use message::Reporting;
 use message::ReportingMode;
 use message::Sleep;
@@ -258,7 +260,7 @@ pub use sensor_state::SensorState;
 use sensor_state::{Periodic, Polling, Uninitialized};
 
 /// The main struct.
-/// Wraps around a serial interface that implements embedded-io-async.
+/// Wraps around a serial interface that implements embedded-io(-async).
 ///
 /// Calling `new()` will give you an uninitialized struct.
 /// You need to call `init()` on it to get a sensor that can be polled.
@@ -290,8 +292,8 @@ where
     }
 
     #[maybe_async]
-    async fn send_message(&mut self, m_type: MessageType) -> Result<(), SDS011Error<RW::Error>> {
-        let msg = Message::new(m_type, self.sensor_id);
+    async fn send_message(&mut self, kind: Kind) -> Result<(), SDS011Error<RW::Error>> {
+        let msg = Message::new(kind, self.sensor_id);
         let out_buf = msg.create_query();
 
         match self.serial.write(&out_buf).await {
@@ -304,23 +306,23 @@ where
     #[maybe_async]
     async fn read_sensor(&mut self, query: bool) -> Result<Measurement, SDS011Error<RW::Error>> {
         if query {
-            self.send_message(MessageType::Query(None)).await?;
+            self.send_message(Kind::Query(None)).await?;
         }
 
-        match self.get_reply().await?.m_type {
-            MessageType::Query(data) => Ok(data.expect("replies always contain data")),
+        match self.get_reply().await?.kind {
+            Kind::Query(data) => Ok(data.expect("replies always contain data")),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
 
     #[maybe_async]
     async fn get_firmware(&mut self) -> Result<(u16, FirmwareVersion), SDS011Error<RW::Error>> {
-        self.send_message(MessageType::FWVersion(None)).await?;
+        self.send_message(Kind::FWVersion(None)).await?;
 
         let reply = self.get_reply().await?;
         let id = reply.sensor_id.expect("replies always contain data");
-        match reply.m_type {
-            MessageType::FWVersion(data) => Ok((id, data.expect("replies always contain data"))),
+        match reply.kind {
+            Kind::FWVersion(data) => Ok((id, data.expect("replies always contain data"))),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -328,10 +330,10 @@ where
     #[maybe_async]
     async fn _get_runmode(&mut self) -> Result<ReportingMode, SDS011Error<RW::Error>> {
         let r = Reporting::new_query();
-        self.send_message(MessageType::ReportingMode(r)).await?;
+        self.send_message(Kind::ReportingMode(r)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::ReportingMode(data) => Ok(data.mode()),
+        match self.get_reply().await?.kind {
+            Kind::ReportingMode(data) => Ok(data.mode()),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -339,10 +341,10 @@ where
     #[maybe_async]
     async fn set_runmode_query(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let r = Reporting::new_set(ReportingMode::Query);
-        self.send_message(MessageType::ReportingMode(r)).await?;
+        self.send_message(Kind::ReportingMode(r)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::ReportingMode(r) => match r.mode() {
+        match self.get_reply().await?.kind {
+            Kind::ReportingMode(r) => match r.mode() {
                 ReportingMode::Query => Ok(()),
                 ReportingMode::Active => Err(SDS011Error::OperationFailed),
             },
@@ -353,10 +355,10 @@ where
     #[maybe_async]
     async fn set_runmode_active(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let r = Reporting::new_set(ReportingMode::Active);
-        self.send_message(MessageType::ReportingMode(r)).await?;
+        self.send_message(Kind::ReportingMode(r)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::ReportingMode(r) => match r.mode() {
+        match self.get_reply().await?.kind {
+            Kind::ReportingMode(r) => match r.mode() {
                 ReportingMode::Active => Ok(()),
                 ReportingMode::Query => Err(SDS011Error::OperationFailed),
             },
@@ -367,10 +369,10 @@ where
     #[maybe_async]
     async fn _get_period(&mut self) -> Result<u8, SDS011Error<RW::Error>> {
         let w = WorkingPeriod::new_query();
-        self.send_message(MessageType::WorkingPeriod(w)).await?;
+        self.send_message(Kind::WorkingPeriod(w)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::WorkingPeriod(data) => Ok(data.period()),
+        match self.get_reply().await?.kind {
+            Kind::WorkingPeriod(data) => Ok(data.period()),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -378,11 +380,11 @@ where
     #[maybe_async]
     async fn set_period(&mut self, minutes: u8) -> Result<(), SDS011Error<RW::Error>> {
         let w = WorkingPeriod::new_set(minutes);
-        self.send_message(MessageType::WorkingPeriod(w)).await?;
+        self.send_message(Kind::WorkingPeriod(w)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::WorkingPeriod(data) if data.period() == minutes => Ok(()),
-            MessageType::WorkingPeriod(_) => Err(SDS011Error::OperationFailed),
+        match self.get_reply().await?.kind {
+            Kind::WorkingPeriod(data) if data.period() == minutes => Ok(()),
+            Kind::WorkingPeriod(_) => Err(SDS011Error::OperationFailed),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -390,10 +392,10 @@ where
     #[maybe_async]
     async fn _get_sleep(&mut self) -> Result<SleepMode, SDS011Error<RW::Error>> {
         let s = Sleep::new_query();
-        self.send_message(MessageType::Sleep(s)).await?;
+        self.send_message(Kind::Sleep(s)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::Sleep(data) => Ok(data.sleep_mode()),
+        match self.get_reply().await?.kind {
+            Kind::Sleep(data) => Ok(data.sleep_mode()),
             _ => Err(SDS011Error::UnexpectedType),
         }
     }
@@ -401,11 +403,11 @@ where
     #[maybe_async]
     async fn sleep(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let s = Sleep::new_set(SleepMode::Sleep);
-        self.send_message(MessageType::Sleep(s)).await?;
+        self.send_message(Kind::Sleep(s)).await?;
 
         // quirky response (FF instead of AB byte)
-        match self.get_reply().await?.m_type {
-            MessageType::Sleep(s) => match s.sleep_mode() {
+        match self.get_reply().await?.kind {
+            Kind::Sleep(s) => match s.sleep_mode() {
                 SleepMode::Sleep => Ok(()),
                 SleepMode::Work => Err(SDS011Error::OperationFailed),
             },
@@ -416,10 +418,10 @@ where
     #[maybe_async]
     async fn wake(&mut self) -> Result<(), SDS011Error<RW::Error>> {
         let s = Sleep::new_set(SleepMode::Work);
-        self.send_message(MessageType::Sleep(s)).await?;
+        self.send_message(Kind::Sleep(s)).await?;
 
-        match self.get_reply().await?.m_type {
-            MessageType::Sleep(s) => match s.sleep_mode() {
+        match self.get_reply().await?.kind {
+            Kind::Sleep(s) => match s.sleep_mode() {
                 SleepMode::Work => Ok(()),
                 SleepMode::Sleep => Err(SDS011Error::OperationFailed),
             },

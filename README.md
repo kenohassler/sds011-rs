@@ -83,11 +83,11 @@ We abstract this into the following interface:
   No serial communication is performed during creation.
 * You call `init()`. This will return a sensor in `Polling` state.
   The sensor is instructed via serial commands to switch to query mode and
-  goes to sleep (fan off). This operation may fail.
+  goes to sleep (fan off).
 * The sensor can now be queried via the `measure()` function.
   This will wake the sensor, spin the fan for a configurable duration
   (which is necessary to get a correct measurement), read the sensor and
-  put it back to sleep. This operation may fail.
+  put it back to sleep.
 * Optionally (not recommended!), the sensor can be put into `Periodic` state
   by calling `make_periodic()` on a sensor in `Polling` state.
   This puts the sensor in charge of sleeping and waking up.

@@ -331,7 +331,7 @@ impl FirmwareVersion {
     }
 }
 
-pub enum MessageType {
+pub enum Kind {
     ReportingMode(Reporting),
     Query(Option<Measurement>),
     SetDeviceID(NewDeviceID),
@@ -340,18 +340,16 @@ pub enum MessageType {
     FWVersion(Option<FirmwareVersion>),
 }
 
-impl MessageType {
+impl Kind {
     fn parse(data: &[u8]) -> Result<Self, ParseError> {
         match data[1] {
-            0xC0 => Ok(MessageType::Query(Some(Measurement::from_bytes(data)))),
+            0xC0 => Ok(Kind::Query(Some(Measurement::from_bytes(data)))),
             0xC5 => match data[2] {
-                2 => Ok(MessageType::ReportingMode(Reporting::from_bytes(data)?)),
-                5 => Ok(MessageType::SetDeviceID(NewDeviceID::from_bytes(data))),
-                6 => Ok(MessageType::Sleep(Sleep::from_bytes(data)?)),
-                8 => Ok(MessageType::WorkingPeriod(WorkingPeriod::from_bytes(data)?)),
-                7 => Ok(MessageType::FWVersion(Some(FirmwareVersion::from_bytes(
-                    data,
-                )))),
+                2 => Ok(Kind::ReportingMode(Reporting::from_bytes(data)?)),
+                5 => Ok(Kind::SetDeviceID(NewDeviceID::from_bytes(data))),
+                6 => Ok(Kind::Sleep(Sleep::from_bytes(data)?)),
+                8 => Ok(Kind::WorkingPeriod(WorkingPeriod::from_bytes(data)?)),
+                7 => Ok(Kind::FWVersion(Some(FirmwareVersion::from_bytes(data)))),
                 s => Err(ParseError::SubCommand(s)),
             },
             c => Err(ParseError::CommandID(c)),
@@ -360,24 +358,24 @@ impl MessageType {
 
     fn populate_query(&self, data: &mut [u8]) {
         let subcommand = match self {
-            MessageType::ReportingMode(r) => {
+            Kind::ReportingMode(r) => {
                 r.populate_query(data);
                 2
             }
-            MessageType::Query(_) => 4,
-            MessageType::SetDeviceID(d) => {
+            Kind::Query(_) => 4,
+            Kind::SetDeviceID(d) => {
                 d.populate_query(data);
                 5
             }
-            MessageType::Sleep(s) => {
+            Kind::Sleep(s) => {
                 s.populate_query(data);
                 6
             }
-            MessageType::WorkingPeriod(w) => {
+            Kind::WorkingPeriod(w) => {
                 w.populate_query(data);
                 8
             }
-            MessageType::FWVersion(_) => 7,
+            Kind::FWVersion(_) => 7,
         };
 
         data[1] = 0xB4;
@@ -386,7 +384,7 @@ impl MessageType {
 }
 
 pub struct Message {
-    pub m_type: MessageType,
+    pub kind: Kind,
     pub sensor_id: Option<u16>,
 }
 
@@ -398,13 +396,13 @@ impl Message {
             return Err(ParseError::Checksum(chksum, data[8]));
         }
 
-        let msg = MessageType::parse(data)?;
+        let msg = Kind::parse(data)?;
         let sensor_id = u16::from_le_bytes(data[6..8].try_into().expect("slice size is 2"));
 
         // check head and tail
         if data[0] != 0xAA || data[9] != 0xAB {
             match &msg {
-                MessageType::Sleep(s) => {
+                Kind::Sleep(s) => {
                     // quirk: sleep reply messages end with 0xFF?!
                     if let QueryMode::Set = s.query {
                         if data[9] != 0xFF {
@@ -417,7 +415,7 @@ impl Message {
         }
 
         Ok(Message {
-            m_type: msg,
+            kind: msg,
             sensor_id: Some(sensor_id),
         })
     }
@@ -427,7 +425,7 @@ impl Message {
         output[0] = 0xAA;
         output[18] = 0xAB;
 
-        self.m_type.populate_query(&mut output);
+        self.kind.populate_query(&mut output);
 
         match self.sensor_id {
             None => {
@@ -450,9 +448,9 @@ impl Message {
         output
     }
 
-    pub fn new(m_type: MessageType, target_sensor: Option<u16>) -> Self {
+    pub fn new(kind: Kind, target_sensor: Option<u16>) -> Self {
         Message {
-            m_type,
+            kind,
             sensor_id: target_sensor,
         }
     }
