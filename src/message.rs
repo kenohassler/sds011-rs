@@ -67,11 +67,13 @@ impl Measurement {
     }
 
     /// Retrieve the PM2.5 fine dust value. Divide by ten to get µg/m3.
+    #[must_use]
     pub fn pm25(&self) -> u16 {
         self.pm25
     }
 
     /// Retrieve the PM10 fine dust value. Divide by ten to get µg/m3.
+    #[must_use]
     pub fn pm10(&self) -> u16 {
         self.pm10
     }
@@ -278,7 +280,7 @@ impl WorkingPeriod {
 
     fn populate_query(&self, data: &mut [u8]) {
         data[3] = (&self.query).into();
-        data[4] = self.minutes
+        data[4] = self.minutes;
     }
 
     pub fn new_query() -> Self {
@@ -312,7 +314,7 @@ impl Display for FirmwareVersion {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!(
             "{}.{:02}.{:02}",
-            2000 + self.year as u16,
+            2000 + u16::from(self.year),
             self.month,
             self.day
         ))

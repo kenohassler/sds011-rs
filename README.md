@@ -11,8 +11,8 @@ systems as well as embedded devices.
 
 ## Examples
 The crate ships with two small CLI examples that utilize the library:
-* [cli.rs](examples/cli.rs) uses the synchronous interface (embedded-io),
-* [cli_async.rs](examples/cli_async.rs) uses the asynchronous interface
+* [`cli.rs`](examples/cli.rs) uses the synchronous interface (embedded-io),
+* [`cli_async.rs`](examples/cli_async.rs) uses the asynchronous interface
   (embedded-io-async).
 
 The example below demonstrates how to use the sensor with an ESP32,
