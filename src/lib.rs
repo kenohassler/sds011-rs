@@ -112,8 +112,8 @@
 //! for the SDS011 sensor.
 
 #![no_std]
+#![allow(stable_features)] // remove once rust 1.81 is stable
 #![feature(error_in_core)]
-#![allow(stable_features, reason = "remove this once rust 1.81 is stable")]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
@@ -493,13 +493,13 @@ where
     }
 
     /// Get the sensor's ID.
-    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
+    #[allow(clippy::missing_panics_doc)] // should never panic
     pub fn id(&self) -> u16 {
         self.sensor_id.expect("sensor is initialized")
     }
 
     /// Get the sensor's firmware version.
-    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
+    #[allow(clippy::missing_panics_doc)] // should never panic
     pub fn version(&self) -> FirmwareVersion {
         self.firmware.clone().expect("sensor is initialized")
     }
@@ -568,13 +568,13 @@ where
     }
 
     /// Get the sensor's ID.
-    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
+    #[allow(clippy::missing_panics_doc)] // should never panic
     pub fn id(&self) -> u16 {
         self.sensor_id.expect("sensor is initialized")
     }
 
     /// Get the sensor's firmware version.
-    #[allow(clippy::missing_panics_doc, reason = "should never panic")]
+    #[allow(clippy::missing_panics_doc)] // should never panic
     pub fn version(&self) -> FirmwareVersion {
         self.firmware.clone().expect("sensor is initialized")
     }
