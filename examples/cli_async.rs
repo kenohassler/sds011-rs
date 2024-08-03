@@ -26,6 +26,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else {
         let ports = tokio_serial::available_ports()?;
         let ports: Vec<String> = ports.into_iter().map(|p| p.port_name).collect();
+        if ports.len() == 0 {
+            return Err("No serial ports available.".into());
+        }
         Select::new("Which serial port should be used?", ports).prompt()?
     };
 
