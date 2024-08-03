@@ -579,6 +579,3 @@ where
         self.firmware.clone().expect("sensor is initialized")
     }
 }
-
-#[cfg(test)]
-mod tests {}

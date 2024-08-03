@@ -83,13 +83,13 @@ pub struct NewDeviceID(u16);
 
 impl NewDeviceID {
     fn from_bytes(data: &[u8]) -> Self {
-        NewDeviceID(u16::from_le_bytes(
+        NewDeviceID(u16::from_be_bytes(
             data[6..8].try_into().expect("slice size is 2"),
         ))
     }
 
     fn populate_query(&self, data: &mut [u8]) {
-        let bytes = self.0.to_le_bytes();
+        let bytes = self.0.to_be_bytes();
 
         if bytes[0] == 0xFF || bytes[1] == 0xFF {
             unimplemented!("This device ID is invalid")
@@ -100,6 +100,8 @@ impl NewDeviceID {
     }
 }
 
+#[derive(Clone, Copy)]
+#[repr(u8)]
 enum QueryMode {
     Query,
     Set,
@@ -117,16 +119,8 @@ impl TryFrom<u8> for QueryMode {
     }
 }
 
-impl From<&QueryMode> for u8 {
-    fn from(value: &QueryMode) -> Self {
-        match value {
-            QueryMode::Query => 0,
-            QueryMode::Set => 1,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u8)]
 pub enum ReportingMode {
     Active,
     Query,
@@ -140,15 +134,6 @@ impl TryFrom<u8> for ReportingMode {
             0 => Ok(ReportingMode::Active),
             1 => Ok(ReportingMode::Query),
             e => Err(ParseError::BooleanField(e)),
-        }
-    }
-}
-
-impl From<&ReportingMode> for u8 {
-    fn from(value: &ReportingMode) -> Self {
-        match value {
-            ReportingMode::Active => 0,
-            ReportingMode::Query => 1,
         }
     }
 }
@@ -169,14 +154,14 @@ impl Reporting {
     }
 
     fn populate_query(&self, data: &mut [u8]) {
-        data[3] = (&self.query).into();
-        data[4] = (&self.reporting).into();
+        data[3] = self.query as u8;
+        data[4] = self.reporting as u8;
     }
 
     pub fn new_query() -> Self {
         Reporting {
             query: QueryMode::Query,
-            reporting: ReportingMode::Query,
+            reporting: ReportingMode::Active,
         }
     }
 
@@ -192,7 +177,8 @@ impl Reporting {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u8)]
 pub enum SleepMode {
     Sleep,
     Work,
@@ -206,15 +192,6 @@ impl TryFrom<u8> for SleepMode {
             0 => Ok(SleepMode::Sleep),
             1 => Ok(SleepMode::Work),
             e => Err(ParseError::BooleanField(e)),
-        }
-    }
-}
-
-impl From<&SleepMode> for u8 {
-    fn from(value: &SleepMode) -> Self {
-        match value {
-            SleepMode::Sleep => 0,
-            SleepMode::Work => 1,
         }
     }
 }
@@ -235,8 +212,8 @@ impl Sleep {
     }
 
     fn populate_query(&self, data: &mut [u8]) {
-        data[3] = (&self.query).into();
-        data[4] = (&self.sleep).into();
+        data[3] = self.query as u8;
+        data[4] = self.sleep as u8;
     }
 
     pub fn new_query() -> Self {
@@ -279,7 +256,7 @@ impl WorkingPeriod {
     }
 
     fn populate_query(&self, data: &mut [u8]) {
-        data[3] = (&self.query).into();
+        data[3] = self.query as u8;
         data[4] = self.minutes;
     }
 
@@ -304,30 +281,17 @@ impl WorkingPeriod {
 
 /// The firmware version of the sensor.
 #[derive(Clone, Debug)]
-pub struct FirmwareVersion {
-    year: u8,
-    month: u8,
-    day: u8,
-}
+pub struct FirmwareVersion(u8, u8, u8);
 
 impl Display for FirmwareVersion {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!(
-            "{}.{:02}.{:02}",
-            2000 + u16::from(self.year),
-            self.month,
-            self.day
-        ))
+        f.write_fmt(format_args!("{}-{}-{}", self.0, self.1, self.2))
     }
 }
 
 impl FirmwareVersion {
     fn from_bytes(data: &[u8]) -> Self {
-        FirmwareVersion {
-            year: data[3],
-            month: data[4],
-            day: data[5],
-        }
+        FirmwareVersion(data[3], data[4], data[5])
     }
 }
 
@@ -397,7 +361,7 @@ impl Message {
         }
 
         let msg = Kind::parse(data)?;
-        let sensor_id = u16::from_le_bytes(data[6..8].try_into().expect("slice size is 2"));
+        let sensor_id = u16::from_be_bytes(data[6..8].try_into().expect("slice size is 2"));
 
         // check head and tail
         if data[0] != 0xAA || data[9] != 0xAB {
@@ -433,7 +397,7 @@ impl Message {
                 output[16] = 0xFF;
             }
             Some(id) => {
-                let bytes = id.to_le_bytes();
+                let bytes = id.to_be_bytes();
                 output[15] = bytes[0];
                 output[16] = bytes[1];
             }
@@ -453,5 +417,338 @@ impl Message {
             kind,
             sensor_id: target_sensor,
         }
+    }
+}
+
+#[cfg(test)]
+/// Tests from the control protocol PDF
+mod tests {
+    use super::{
+        FirmwareVersion, Kind, Measurement, Message, NewDeviceID, QueryMode, Reporting,
+        ReportingMode, Sleep, SleepMode, WorkingPeriod,
+    };
+
+    // tests for the reporting mode (active / query), p.4
+    #[test]
+    fn reporting_mode_send_query() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xFF, 0xFF, 0x00, 0xAB,
+        ];
+        let query = Reporting::new_query();
+        let msg = Message::new(Kind::ReportingMode(query), None);
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn reporting_mode_receive_active() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x02, 0x00, 0x00, 0x00, 0xA1, 0x60, 0x03, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::ReportingMode(Reporting {
+                query: QueryMode::Query,
+                reporting: ReportingMode::Active
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn reporting_mode_receive_query() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x02, 0x00, 0x01, 0x00, 0xA1, 0x60, 0x04, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::ReportingMode(Reporting {
+                query: QueryMode::Query,
+                reporting: ReportingMode::Query
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn reporting_mode_send_command() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x05, 0xAB,
+        ];
+        let query = Reporting::new_set(ReportingMode::Query);
+        let msg = Message::new(Kind::ReportingMode(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn reporting_mode_receive_set_query() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x02, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x05, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::ReportingMode(Reporting {
+                query: QueryMode::Set,
+                reporting: ReportingMode::Query
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    // tests querying data, p.5/6. Replies are equal and only tested once.
+    #[test]
+    fn data_send_command_broadcast() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xFF, 0xFF, 0x02, 0xAB,
+        ];
+
+        let msg = Message::new(Kind::Query(None), None);
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn data_send_command_target() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x05, 0xAB,
+        ];
+
+        let msg = Message::new(Kind::Query(None), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn data_receive() {
+        const MSG: [u8; 10] = [0xAA, 0xC0, 0xD4, 0x04, 0x3A, 0x0A, 0xA1, 0x60, 0x1D, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::Query(Some(Measurement {
+                pm25: 1236,
+                pm10: 2618
+            }))
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    // tests setting the device ID, p.7
+    #[test]
+    fn device_id_send_command() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA0,
+            0x01, 0xA1, 0x60, 0xA7, 0xAB,
+        ];
+        let query = NewDeviceID(0xA001);
+        let msg = Message::new(Kind::SetDeviceID(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn device_id_receive_confirm() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x05, 0x00, 0x00, 0x00, 0xA0, 0x01, 0xA6, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(msg.kind, Kind::SetDeviceID(NewDeviceID(0xA001))));
+        assert_eq!(msg.sensor_id, Some(0xA001));
+    }
+
+    // tests for wake / sleep, p.8
+    #[test]
+    fn sleep_send_command() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x08, 0xAB,
+        ];
+        let query = Sleep::new_set(SleepMode::Sleep);
+        let msg = Message::new(Kind::Sleep(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn sleep_receive_confirm() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x08, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::Sleep(Sleep {
+                query: QueryMode::Set,
+                sleep: SleepMode::Sleep
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn wake_send_command() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x09, 0xAB,
+        ];
+        let query = Sleep::new_set(SleepMode::Work);
+        let msg = Message::new(Kind::Sleep(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn wake_receive_confirm() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x09, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::Sleep(Sleep {
+                query: QueryMode::Set,
+                sleep: SleepMode::Work
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn sleep_wake_send_query() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x07, 0xAB,
+        ];
+        let query = Sleep::new_query();
+        let msg = Message::new(Kind::Sleep(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn sleep_wake_receive_wake() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x00, 0x01, 0x00, 0xA1, 0x60, 0x08, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::Sleep(Sleep {
+                query: QueryMode::Query,
+                sleep: SleepMode::Work
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn sleep_wake_receive_sleep() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x00, 0x00, 0x00, 0xA1, 0x60, 0x07, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::Sleep(Sleep {
+                query: QueryMode::Query,
+                sleep: SleepMode::Sleep
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn working_period_send_command_1() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x08, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x0B, 0xAB,
+        ];
+        let query = WorkingPeriod::new_set(1);
+        let msg = Message::new(Kind::WorkingPeriod(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    // tests for getting / setting the working period, p.9/10
+    #[test]
+    fn working_period_receive_confirm_1() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x08, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x0B, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::WorkingPeriod(WorkingPeriod {
+                query: QueryMode::Set,
+                minutes: 1
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn working_period_send_command_0() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x0A, 0xAB,
+        ];
+        let query = WorkingPeriod::new_set(0);
+        let msg = Message::new(Kind::WorkingPeriod(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn working_period_receive_confirm_0() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x08, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x0A, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::WorkingPeriod(WorkingPeriod {
+                query: QueryMode::Set,
+                minutes: 0
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    #[test]
+    fn working_period_send_query() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x09, 0xAB,
+        ];
+        let query = WorkingPeriod::new_query();
+        let msg = Message::new(Kind::WorkingPeriod(query), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn working_period_receive() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x08, 0x00, 0x02, 0x00, 0xA1, 0x60, 0x0B, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::WorkingPeriod(WorkingPeriod {
+                query: QueryMode::Query,
+                minutes: 2
+            })
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
+    }
+
+    // tests reading the firmware version, p.11
+    #[test]
+    fn firmware_version_send_query() {
+        const EXPECTED: [u8; 19] = [
+            0xAA, 0xB4, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0xA1, 0x60, 0x08, 0xAB,
+        ];
+
+        let msg = Message::new(Kind::FWVersion(None), Some(0xA160));
+        assert_eq!(msg.create_query(), EXPECTED);
+    }
+
+    #[test]
+    fn firmware_version_receive() {
+        const MSG: [u8; 10] = [0xAA, 0xC5, 0x07, 0x0F, 0x07, 0x0A, 0xA1, 0x60, 0x28, 0xAB];
+        let msg = Message::parse_reply(&MSG).unwrap();
+
+        assert!(matches!(
+            msg.kind,
+            Kind::FWVersion(Some(FirmwareVersion(15, 7, 10)))
+        ));
+        assert_eq!(msg.sensor_id, Some(0xA160));
     }
 }
