@@ -1,9 +1,9 @@
 [package]
 name = "sds011-rs"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Keno Hassler"]
 edition = "2021"
-#rust-version = "1.81"
+rust-version = "1.81"
 description = "A driver for the SDS011 particle sensor based on embedded-io."
 repository = "https://github.com/kenohassler/sds011-rs"
 license = "MIT OR Apache-2.0"
@@ -20,9 +20,9 @@ maybe-async = "0.2"
 [dev-dependencies]
 embedded-io-adapters = { version = "0.6", features = ["std", "tokio-1"] }
 inquire = "0.7"
-serialport = "4.4"
+serialport = "4.5"
 tokio-serial = "5.4"
-tokio = { version = "1.38", features = ["macros", "time", "rt-multi-thread"] }
+tokio = { version = "1.40", features = ["macros", "time", "rt-multi-thread"] }
 
 [features]
 sync = ["maybe-async/is_sync"]

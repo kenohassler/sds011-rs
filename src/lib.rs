@@ -112,8 +112,6 @@
 //! for the SDS011 sensor.
 
 #![no_std]
-#![allow(stable_features)] // remove once rust 1.81 is stable
-#![feature(error_in_core)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
