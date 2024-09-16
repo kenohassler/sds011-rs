@@ -173,7 +173,8 @@ impl Reporting {
         data[4] = (&self.reporting).into();
     }
 
-    pub fn _new_query() -> Self {
+    #[allow(dead_code)]
+    pub fn new_query() -> Self {
         Reporting {
             query: QueryMode::Query,
             reporting: ReportingMode::Query,
@@ -239,7 +240,8 @@ impl Sleep {
         data[4] = (&self.sleep).into();
     }
 
-    pub fn _new_query() -> Self {
+    #[allow(dead_code)]
+    pub fn new_query() -> Self {
         Sleep {
             query: QueryMode::Query,
             sleep: SleepMode::Sleep,
@@ -283,7 +285,8 @@ impl WorkingPeriod {
         data[4] = self.minutes;
     }
 
-    pub fn _new_query() -> Self {
+    #[allow(dead_code)]
+    pub fn new_query() -> Self {
         WorkingPeriod {
             query: QueryMode::Query,
             minutes: 0,
