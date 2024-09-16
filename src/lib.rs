@@ -112,8 +112,6 @@
 //! for the SDS011 sensor.
 
 #![no_std]
-#![allow(stable_features)] // remove once rust 1.81 is stable
-#![feature(error_in_core)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
@@ -329,7 +327,7 @@ where
 
     #[maybe_async]
     async fn _get_runmode(&mut self) -> Result<ReportingMode, SDS011Error<RW::Error>> {
-        let r = Reporting::new_query();
+        let r = Reporting::_new_query();
         self.send_message(Kind::ReportingMode(r)).await?;
 
         match self.get_reply().await?.kind {
@@ -368,7 +366,7 @@ where
 
     #[maybe_async]
     async fn _get_period(&mut self) -> Result<u8, SDS011Error<RW::Error>> {
-        let w = WorkingPeriod::new_query();
+        let w = WorkingPeriod::_new_query();
         self.send_message(Kind::WorkingPeriod(w)).await?;
 
         match self.get_reply().await?.kind {
@@ -391,7 +389,7 @@ where
 
     #[maybe_async]
     async fn _get_sleep(&mut self) -> Result<SleepMode, SDS011Error<RW::Error>> {
-        let s = Sleep::new_query();
+        let s = Sleep::_new_query();
         self.send_message(Kind::Sleep(s)).await?;
 
         match self.get_reply().await?.kind {
