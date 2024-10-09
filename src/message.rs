@@ -284,17 +284,30 @@ impl WorkingPeriod {
 
 /// The firmware version of the sensor.
 #[derive(Clone, Debug)]
-pub struct FirmwareVersion(u8, u8, u8);
+pub struct FirmwareVersion {
+    year: u8,
+    month: u8,
+    day: u8,
+}
 
 impl Display for FirmwareVersion {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("{}-{}-{}", self.0, self.1, self.2))
+        f.write_fmt(format_args!(
+            "{}.{:02}.{:02}",
+            2000 + u16::from(self.year),
+            self.month,
+            self.day
+        ))
     }
 }
 
 impl FirmwareVersion {
     fn from_bytes(data: &[u8]) -> Self {
-        FirmwareVersion(data[3], data[4], data[5])
+        FirmwareVersion {
+            year: data[3],
+            month: data[4],
+            day: data[5],
+        }
     }
 }
 
@@ -750,7 +763,11 @@ mod tests {
 
         assert!(matches!(
             msg.kind,
-            Kind::FWVersion(Some(FirmwareVersion(15, 7, 10)))
+            Kind::FWVersion(Some(FirmwareVersion {
+                year: 15,
+                month: 7,
+                day: 10
+            }))
         ));
         assert_eq!(msg.sensor_id, Some(0xA160));
     }
