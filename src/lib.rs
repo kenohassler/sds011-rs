@@ -41,25 +41,22 @@
 //!     let system = SystemControl::new(peripherals.SYSTEM);
 //!     let clocks = ClockControl::max(system.clock_control).freeze();
 //!
-//!     let timg0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
-//!     esp_hal_embassy::init(&clocks, timg0);
+//!     let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
+//!     esp_hal_embassy::init(&clocks, timg0.timer0);
 //!
 //!     let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
-//!     let pins = TxRxPins::new_tx_rx(io.pins.gpio17, io.pins.gpio16);
+//!     let (tx_pin, rx_pin) = (io.pins.gpio3, io.pins.gpio2);
+//!     let config = Config::default()
+//!         .baudrate(9600)
+//!         .rx_fifo_full_threshold(sds011::READ_BUF_SIZE as u16);
 //!
-//!     let mut uart0 = Uart::new_async_with_config(
-//!         peripherals.UART0,
-//!         Config::default().baudrate(9600),
-//!         Some(pins),
-//!         &clocks,
-//!     );
-//!     uart0
-//!         .set_rx_fifo_full_threshold(sds011::READ_BUF_SIZE as u16)
-//!         .unwrap();
+//!     let mut uart1 =
+//!         Uart::new_async_with_config(peripherals.UART1, config, &clocks, tx_pin, rx_pin).unwrap();
 //!
-//!     let sds011 = SDS011::new(&mut uart0, sds011::Config::default());
+//!     let sds011 = SDS011::new(&mut uart1, sds011::Config::default());
 //!     let mut sds011 = sds011.init(&mut Delay).await.unwrap();
 //!
+//!     println!("SDS011 version {}, ID {}", sds011.version(), sds011.id());
 //!     loop {
 //!         let dust = sds011.measure(&mut Delay).await.unwrap();
 //!         println!("{}", dust);
