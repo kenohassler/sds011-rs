@@ -121,9 +121,9 @@ use embedded_hal::delay::DelayNs;
 #[cfg(not(feature = "sync"))]
 use embedded_hal_async::delay::DelayNs;
 #[cfg(feature = "sync")]
-use embedded_io::{Read, Write};
+use embedded_io::{Read, ReadExactError, Write};
 #[cfg(not(feature = "sync"))]
-use embedded_io_async::{Read, Write};
+use embedded_io_async::{Read, ReadExactError, Write};
 use maybe_async::maybe_async;
 pub use message::FirmwareVersion;
 use message::Kind;
@@ -147,7 +147,7 @@ pub const READ_BUF_SIZE: usize = 10;
 ///
 /// Delays are necessary between waking up the sensor
 /// and reading its value to stabilize the measurement.
-#[must_use]
+#[derive(Debug, Clone)]
 pub struct Config {
     sleep_delay: u32,
     measure_delay: u32,
@@ -166,6 +166,7 @@ impl Config {
     /// Configure the time between waking the sensor (spinning up the fan)
     /// and reading the measurement, in milliseconds.
     /// The sensor manual recommends 30 seconds, which is the default.
+    #[must_use]
     pub fn set_measure_delay(mut self, measure_delay: u32) -> Self {
         self.measure_delay = measure_delay;
         self
@@ -173,6 +174,7 @@ impl Config {
 
     /// How many milliseconds to wait before waking the sensor; defaults to 500.
     /// Setting this too low can result in the sensor not coming up (boot time?)
+    #[must_use]
     pub fn set_sleep_delay(mut self, sleep_delay: u32) -> Self {
         self.sleep_delay = sleep_delay;
         self
@@ -187,10 +189,8 @@ pub enum SDS011Error<E> {
     ReadError(E),
     /// The serial interface returned an error while writing.
     WriteError(E),
-    /// We received a message shorter than the fixed message length (10 bytes).
-    ShortRead,
-    /// We were unable to send the full message (19 bytes) at once.
-    ShortWrite,
+    /// Encountered an EOF while reading.
+    UnexpectedEof,
     /// The received message was not expected in the current sensor state.
     UnexpectedType,
     /// The requested operation failed.
@@ -207,8 +207,7 @@ impl<E> Display for SDS011Error<E> {
             }
             SDS011Error::ReadError(_) => f.write_str("serial read error"),
             SDS011Error::WriteError(_) => f.write_str("serial write error"),
-            SDS011Error::ShortRead => f.write_str("short read"),
-            SDS011Error::ShortWrite => f.write_str("short write"),
+            SDS011Error::UnexpectedEof => f.write_str("unexpected EOF"),
             SDS011Error::UnexpectedType => f.write_str("unexpected message type"),
             SDS011Error::OperationFailed => f.write_str("requested operation failed"),
             SDS011Error::Invalid => f.write_str("given parameters were invalid"),
@@ -276,13 +275,10 @@ where
     async fn get_reply(&mut self) -> Result<Message, SDS011Error<RW::Error>> {
         let mut buf = [0u8; READ_BUF_SIZE];
 
-        match self.serial.read(&mut buf).await {
-            Ok(n) if n == buf.len() => match Message::parse_reply(&buf) {
-                Ok(m) => Ok(m),
-                Err(e) => Err(SDS011Error::ParseError(e)),
-            },
-            Ok(_) => Err(SDS011Error::ShortRead),
-            Err(e) => Err(SDS011Error::ReadError(e)),
+        match self.serial.read_exact(&mut buf).await {
+            Ok(()) => Message::parse_reply(&buf).map_err(SDS011Error::ParseError),
+            Err(ReadExactError::UnexpectedEof) => Err(SDS011Error::UnexpectedEof),
+            Err(ReadExactError::Other(e)) => Err(SDS011Error::ReadError(e)),
         }
     }
 
@@ -291,11 +287,10 @@ where
         let msg = Message::new(kind, self.sensor_id);
         let out_buf = msg.create_query();
 
-        match self.serial.write(&out_buf).await {
-            Ok(n) if n == out_buf.len() => Ok(()),
-            Ok(_) => Err(SDS011Error::ShortWrite),
-            Err(e) => Err(SDS011Error::WriteError(e)),
-        }
+        self.serial
+            .write_all(&out_buf)
+            .await
+            .map_err(SDS011Error::WriteError)
     }
 
     #[maybe_async]
@@ -400,7 +395,6 @@ where
         let s = Sleep::new_set(SleepMode::Sleep);
         self.send_message(Kind::Sleep(s)).await?;
 
-        // quirky response (FF instead of AB byte)
         match self.get_reply().await?.kind {
             Kind::Sleep(s) => match s.sleep_mode() {
                 SleepMode::Sleep => Ok(()),
