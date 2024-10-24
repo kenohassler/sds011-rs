@@ -48,7 +48,7 @@
 //!     let (tx_pin, rx_pin) = (io.pins.gpio3, io.pins.gpio2);
 //!     let config = Config::default()
 //!         .baudrate(9600)
-//!         .rx_fifo_full_threshold(sds011::READ_BUF_SIZE as u16);
+//!         .rx_fifo_full_threshold(10);
 //!
 //!     let mut uart1 =
 //!         Uart::new_async_with_config(peripherals.UART1, config, &clocks, tx_pin, rx_pin).unwrap();
@@ -112,7 +112,6 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
-use crate::message::ParseError;
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 use core::marker::PhantomData;
@@ -125,23 +124,13 @@ use embedded_io::{Read, ReadExactError, Write};
 #[cfg(not(feature = "sync"))]
 use embedded_io_async::{Read, ReadExactError, Write};
 use maybe_async::maybe_async;
-pub use message::FirmwareVersion;
-use message::Kind;
-pub use message::Measurement;
-use message::Message;
-use message::Reporting;
-use message::ReportingMode;
-use message::Sleep;
-use message::SleepMode;
-use message::WorkingPeriod;
+pub use message::{FirmwareVersion, Measurement};
+use message::{
+    Kind, Message, ParseError, Reporting, ReportingMode, Sleep, SleepMode, WorkingPeriod,
+    RECV_BUF_SIZE,
+};
 
 mod message;
-
-/// The expected receive message length.
-///
-/// This is needed for buffer configuration in some UART implementations,
-/// else `read()` calls block forever waiting for more data.
-pub const READ_BUF_SIZE: usize = 10;
 
 /// Sensor configuration, specifically delay times.
 ///
@@ -273,7 +262,7 @@ where
 {
     #[maybe_async]
     async fn get_reply(&mut self) -> Result<Message, SDS011Error<RW::Error>> {
-        let mut buf = [0u8; READ_BUF_SIZE];
+        let mut buf = [0u8; RECV_BUF_SIZE];
 
         match self.serial.read_exact(&mut buf).await {
             Ok(()) => Message::parse_reply(&buf).map_err(SDS011Error::ParseError),
