@@ -50,7 +50,7 @@ async fn main(_s: Spawner) -> ! {
     let (tx_pin, rx_pin) = (io.pins.gpio3, io.pins.gpio2);
     let config = Config::default()
         .baudrate(9600)
-        .rx_fifo_full_threshold(sds011::READ_BUF_SIZE as u16);
+        .rx_fifo_full_threshold(10);
 
     let mut uart1 =
         Uart::new_async_with_config(peripherals.UART1, config, &clocks, tx_pin, rx_pin).unwrap();

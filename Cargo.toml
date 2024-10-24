@@ -1,6 +1,6 @@
 [package]
 name = "sds011-rs"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Keno Hassler"]
 edition = "2021"
 rust-version = "1.81"
@@ -8,7 +8,7 @@ description = "A driver for the SDS011 particle sensor based on embedded-io."
 repository = "https://github.com/kenohassler/sds011-rs"
 license = "MIT OR Apache-2.0"
 keywords = ["embedded-hal", "async"]
-categories = ["hardware-support", "no-std"]
+categories = ["embedded", "hardware-support", "no-std"]
 
 [dependencies]
 embedded-hal = "1.0"

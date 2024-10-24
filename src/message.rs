@@ -38,6 +38,9 @@ impl Display for ParseError {
 
 impl Error for ParseError {}
 
+pub const RECV_BUF_SIZE: usize = 10;
+const SEND_BUF_SIZE: usize = 19;
+
 /// A measurement of PM2.5 and PM10 fine dust pollution.
 #[derive(Debug)]
 pub struct Measurement {
@@ -369,7 +372,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn parse_reply(data: &[u8; 10]) -> Result<Self, ParseError> {
+    pub fn parse_reply(data: &[u8; RECV_BUF_SIZE]) -> Result<Self, ParseError> {
         // checksum = sum of data bytes
         let chksum = data[2..8].iter().fold(0, |acc: u8, i| acc.wrapping_add(*i));
         if chksum != data[8] {
@@ -400,8 +403,8 @@ impl Message {
         })
     }
 
-    pub fn create_query(&self) -> [u8; 19] {
-        let mut output = [0u8; 19];
+    pub fn create_query(&self) -> [u8; SEND_BUF_SIZE] {
+        let mut output = [0u8; SEND_BUF_SIZE];
         output[0] = 0xAA;
         output[18] = 0xAB;
 
@@ -441,13 +444,13 @@ impl Message {
 mod tests {
     use super::{
         FirmwareVersion, Kind, Measurement, Message, NewDeviceID, QueryMode, Reporting,
-        ReportingMode, Sleep, SleepMode, WorkingPeriod,
+        ReportingMode, Sleep, SleepMode, WorkingPeriod, RECV_BUF_SIZE, SEND_BUF_SIZE,
     };
 
     // tests for the reporting mode (active / query), p.4
     #[test]
     fn reporting_mode_send_query() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xFF, 0xFF, 0x00, 0xAB,
         ];
@@ -458,7 +461,8 @@ mod tests {
 
     #[test]
     fn reporting_mode_receive_active() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x02, 0x00, 0x00, 0x00, 0xA1, 0x60, 0x03, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x02, 0x00, 0x00, 0x00, 0xA1, 0x60, 0x03, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -473,7 +477,8 @@ mod tests {
 
     #[test]
     fn reporting_mode_receive_query() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x02, 0x00, 0x01, 0x00, 0xA1, 0x60, 0x04, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x02, 0x00, 0x01, 0x00, 0xA1, 0x60, 0x04, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -488,7 +493,7 @@ mod tests {
 
     #[test]
     fn reporting_mode_send_command() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x05, 0xAB,
         ];
@@ -499,7 +504,8 @@ mod tests {
 
     #[test]
     fn reporting_mode_receive_set_query() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x02, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x05, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x02, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x05, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -515,7 +521,7 @@ mod tests {
     // tests querying data, p.5/6. Replies are equal and only tested once.
     #[test]
     fn data_send_command_broadcast() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xFF, 0xFF, 0x02, 0xAB,
         ];
@@ -526,7 +532,7 @@ mod tests {
 
     #[test]
     fn data_send_command_target() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x05, 0xAB,
         ];
@@ -537,7 +543,8 @@ mod tests {
 
     #[test]
     fn data_receive() {
-        const MSG: [u8; 10] = [0xAA, 0xC0, 0xD4, 0x04, 0x3A, 0x0A, 0xA1, 0x60, 0x1D, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC0, 0xD4, 0x04, 0x3A, 0x0A, 0xA1, 0x60, 0x1D, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -553,7 +560,7 @@ mod tests {
     // tests setting the device ID, p.7
     #[test]
     fn device_id_send_command() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA0,
             0x01, 0xA1, 0x60, 0xA7, 0xAB,
         ];
@@ -564,7 +571,8 @@ mod tests {
 
     #[test]
     fn device_id_receive_confirm() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x05, 0x00, 0x00, 0x00, 0xA0, 0x01, 0xA6, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x05, 0x00, 0x00, 0x00, 0xA0, 0x01, 0xA6, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(msg.kind, Kind::SetDeviceID(NewDeviceID(0xA001))));
@@ -574,7 +582,7 @@ mod tests {
     // tests for wake / sleep, p.8
     #[test]
     fn sleep_send_command() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x08, 0xAB,
         ];
@@ -585,7 +593,8 @@ mod tests {
 
     #[test]
     fn sleep_receive_confirm() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x08, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x06, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x08, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -600,7 +609,7 @@ mod tests {
 
     #[test]
     fn wake_send_command() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x09, 0xAB,
         ];
@@ -611,7 +620,8 @@ mod tests {
 
     #[test]
     fn wake_receive_confirm() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x09, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x06, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x09, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -626,7 +636,7 @@ mod tests {
 
     #[test]
     fn sleep_wake_send_query() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x07, 0xAB,
         ];
@@ -637,7 +647,8 @@ mod tests {
 
     #[test]
     fn sleep_wake_receive_wake() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x00, 0x01, 0x00, 0xA1, 0x60, 0x08, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x06, 0x00, 0x01, 0x00, 0xA1, 0x60, 0x08, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -652,7 +663,8 @@ mod tests {
 
     #[test]
     fn sleep_wake_receive_sleep() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x06, 0x00, 0x00, 0x00, 0xA1, 0x60, 0x07, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x06, 0x00, 0x00, 0x00, 0xA1, 0x60, 0x07, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -667,7 +679,7 @@ mod tests {
 
     #[test]
     fn working_period_send_command_1() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x08, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x0B, 0xAB,
         ];
@@ -679,7 +691,8 @@ mod tests {
     // tests for getting / setting the working period, p.9/10
     #[test]
     fn working_period_receive_confirm_1() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x08, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x0B, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x08, 0x01, 0x01, 0x00, 0xA1, 0x60, 0x0B, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -694,7 +707,7 @@ mod tests {
 
     #[test]
     fn working_period_send_command_0() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x0A, 0xAB,
         ];
@@ -705,7 +718,8 @@ mod tests {
 
     #[test]
     fn working_period_receive_confirm_0() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x08, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x0A, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x08, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x0A, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -720,7 +734,7 @@ mod tests {
 
     #[test]
     fn working_period_send_query() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x09, 0xAB,
         ];
@@ -731,7 +745,8 @@ mod tests {
 
     #[test]
     fn working_period_receive() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x08, 0x00, 0x02, 0x00, 0xA1, 0x60, 0x0B, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x08, 0x00, 0x02, 0x00, 0xA1, 0x60, 0x0B, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
@@ -747,7 +762,7 @@ mod tests {
     // tests reading the firmware version, p.11
     #[test]
     fn firmware_version_send_query() {
-        const EXPECTED: [u8; 19] = [
+        const EXPECTED: [u8; SEND_BUF_SIZE] = [
             0xAA, 0xB4, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0xA1, 0x60, 0x08, 0xAB,
         ];
@@ -758,7 +773,8 @@ mod tests {
 
     #[test]
     fn firmware_version_receive() {
-        const MSG: [u8; 10] = [0xAA, 0xC5, 0x07, 0x0F, 0x07, 0x0A, 0xA1, 0x60, 0x28, 0xAB];
+        const MSG: [u8; RECV_BUF_SIZE] =
+            [0xAA, 0xC5, 0x07, 0x0F, 0x07, 0x0A, 0xA1, 0x60, 0x28, 0xAB];
         let msg = Message::parse_reply(&MSG).unwrap();
 
         assert!(matches!(
