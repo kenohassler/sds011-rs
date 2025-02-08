@@ -15,13 +15,15 @@ embedded-hal-async = "1.0"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 maybe-async = "0.2"
+thiserror = { version = "2.0", default-features = false }
 
 [dev-dependencies]
 embedded-io-adapters = { version = "0.6", features = ["std", "tokio-1"] }
 inquire = "0.7"
-serialport = "4.5"
+serialport = "4.7"
 tokio-serial = "5.4"
-tokio = { version = "1.40", features = ["macros", "time", "rt-multi-thread"] }
+tokio = { version = "1.44", features = ["macros", "time", "rt-multi-thread"] }
+anyhow = { version = "1.0", default-features = false }
 
 [features]
 sync = ["maybe-async/is_sync"]

@@ -112,8 +112,7 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
-use core::error::Error;
-use core::fmt::{Debug, Display, Formatter};
+use core::fmt::Debug;
 use core::marker::PhantomData;
 #[cfg(feature = "sync")]
 use embedded_hal::delay::DelayNs;
@@ -129,6 +128,7 @@ use message::{
     Kind, Message, ParseError, RECV_BUF_SIZE, Reporting, ReportingMode, Sleep, SleepMode,
     WorkingPeriod,
 };
+use thiserror::Error;
 
 mod message;
 
@@ -171,46 +171,30 @@ impl Config {
 }
 
 /// Error type for operations on the SDS011 sensor.
+#[derive(Debug, Error)]
 pub enum SDS011Error<E> {
     /// A received message could not be decoded.
-    ParseError(ParseError),
+    #[error("message could not be decoded: {0}")]
+    ParseError(#[from] ParseError),
     /// The serial interface returned an error while reading.
+    #[error("serial read error: {0}")]
     ReadError(E),
     /// The serial interface returned an error while writing.
+    #[error("serial write error: {0}")]
     WriteError(E),
     /// Encountered an EOF while reading.
+    #[error("unexpected EOF")]
     UnexpectedEof,
     /// The received message was not expected in the current sensor state.
+    #[error("unexpected message type")]
     UnexpectedType,
     /// The requested operation failed.
+    #[error("requested operation failed")]
     OperationFailed,
     /// The given parameters were invalid.
+    #[error("given parameters were invalid")]
     Invalid,
 }
-
-impl<E> Display for SDS011Error<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            SDS011Error::ParseError(e) => {
-                f.write_fmt(format_args!("message could not be decoded: {e}"))
-            }
-            SDS011Error::ReadError(_) => f.write_str("serial read error"),
-            SDS011Error::WriteError(_) => f.write_str("serial write error"),
-            SDS011Error::UnexpectedEof => f.write_str("unexpected EOF"),
-            SDS011Error::UnexpectedType => f.write_str("unexpected message type"),
-            SDS011Error::OperationFailed => f.write_str("requested operation failed"),
-            SDS011Error::Invalid => f.write_str("given parameters were invalid"),
-        }
-    }
-}
-
-impl<E> Debug for SDS011Error<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        Display::fmt(self, f)
-    }
-}
-
-impl<E> Error for SDS011Error<E> {}
 
 pub mod sensor_state {
     mod private {
@@ -265,7 +249,7 @@ where
         let mut buf = [0u8; RECV_BUF_SIZE];
 
         match self.serial.read_exact(&mut buf).await {
-            Ok(()) => Message::parse_reply(&buf).map_err(SDS011Error::ParseError),
+            Ok(()) => Ok(Message::parse_reply(&buf)?),
             Err(ReadExactError::UnexpectedEof) => Err(SDS011Error::UnexpectedEof),
             Err(ReadExactError::Other(e)) => Err(SDS011Error::ReadError(e)),
         }
