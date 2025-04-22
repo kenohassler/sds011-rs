@@ -443,8 +443,8 @@ impl Message {
 /// Tests from the control protocol PDF
 mod tests {
     use super::{
-        FirmwareVersion, Kind, Measurement, Message, NewDeviceID, QueryMode, Reporting,
-        ReportingMode, Sleep, SleepMode, WorkingPeriod, RECV_BUF_SIZE, SEND_BUF_SIZE,
+        FirmwareVersion, Kind, Measurement, Message, NewDeviceID, QueryMode, RECV_BUF_SIZE,
+        Reporting, ReportingMode, SEND_BUF_SIZE, Sleep, SleepMode, WorkingPeriod,
     };
 
     // tests for the reporting mode (active / query), p.4
