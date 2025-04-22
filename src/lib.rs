@@ -126,8 +126,8 @@ use embedded_io_async::{Read, ReadExactError, Write};
 use maybe_async::maybe_async;
 pub use message::{FirmwareVersion, Measurement};
 use message::{
-    Kind, Message, ParseError, Reporting, ReportingMode, Sleep, SleepMode, WorkingPeriod,
-    RECV_BUF_SIZE,
+    Kind, Message, ParseError, RECV_BUF_SIZE, Reporting, ReportingMode, Sleep, SleepMode,
+    WorkingPeriod,
 };
 
 mod message;
