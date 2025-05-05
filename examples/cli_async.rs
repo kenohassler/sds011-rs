@@ -1,9 +1,9 @@
+use anyhow::{Result, anyhow};
 use embedded_hal_async::delay::DelayNs;
 use embedded_io_adapters::tokio_1::FromTokio;
 use inquire::Select;
 use sds011::{Config, SDS011};
 use std::env;
-use std::error::Error;
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio_serial::SerialStream;
@@ -17,7 +17,7 @@ impl DelayNs for Delay {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<()> {
     let mut args: Vec<String> = env::args().collect();
 
     // use the first arg as serial port, query interactively if not given
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ports = tokio_serial::available_ports()?;
         let ports: Vec<String> = ports.into_iter().map(|p| p.port_name).collect();
         if ports.len() == 0 {
-            return Err("No serial ports available.".into());
+            return Err(anyhow!("No serial ports available."));
         }
         Select::new("Which serial port should be used?", ports).prompt()?
     };

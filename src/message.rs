@@ -1,42 +1,21 @@
-use core::error::Error;
 use core::fmt::{Display, Formatter};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ParseError {
+    #[error("{0} is out-of-range for boolean (0, 1)")]
     BooleanField(u8),
+    #[error("{0} is out-of-range for time [0..=30]")]
     TimeField(u8),
+    #[error("all messages must start with 0xAA and end with 0xAB")]
     HeadTail,
+    #[error("{0:#04X} is an unknown command")]
     CommandID(u8),
+    #[error("{0} is an unknown subcommand")]
     SubCommand(u8),
+    #[error("checksum mismatch: {0} != {1}")]
     Checksum(u8, u8),
 }
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ParseError::BooleanField(i) => {
-                f.write_fmt(format_args!("{} is out-of-range for boolean (0,1)", *i))
-            }
-            ParseError::TimeField(i) => {
-                f.write_fmt(format_args!("{} is out-of-range for time [0..31]", *i))
-            }
-            ParseError::HeadTail => f.write_fmt(format_args!(
-                "all messages must start with 0xAA and end with 0xAB"
-            )),
-            ParseError::CommandID(i) => {
-                f.write_fmt(format_args!("{:#04X} is an unknown command", *i))
-            }
-            ParseError::SubCommand(i) => {
-                f.write_fmt(format_args!("{} is an unknown subcommand", *i))
-            }
-            ParseError::Checksum(a, b) => {
-                f.write_fmt(format_args!("checksum mismatch: {} != {}", *a, *b))
-            }
-        }
-    }
-}
-
-impl Error for ParseError {}
 
 pub const RECV_BUF_SIZE: usize = 10;
 const SEND_BUF_SIZE: usize = 19;
