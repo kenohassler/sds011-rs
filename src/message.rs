@@ -42,7 +42,7 @@ impl Display for Measurement {
 
 impl Measurement {
     fn from_bytes(data: &[u8]) -> Self {
-        Measurement {
+        Self {
             pm25: u16::from_le_bytes(data[2..4].try_into().expect("slice size is 2")),
             pm10: u16::from_le_bytes(data[4..6].try_into().expect("slice size is 2")),
         }
@@ -50,13 +50,13 @@ impl Measurement {
 
     /// Retrieve the PM2.5 fine dust value. Divide by ten to get µg/m3.
     #[must_use]
-    pub fn pm25(&self) -> u16 {
+    pub const fn pm25(&self) -> u16 {
         self.pm25
     }
 
     /// Retrieve the PM10 fine dust value. Divide by ten to get µg/m3.
     #[must_use]
-    pub fn pm10(&self) -> u16 {
+    pub const fn pm10(&self) -> u16 {
         self.pm10
     }
 }
@@ -65,7 +65,7 @@ pub struct NewDeviceID(u16);
 
 impl NewDeviceID {
     fn from_bytes(data: &[u8]) -> Self {
-        NewDeviceID(u16::from_be_bytes(
+        Self(u16::from_be_bytes(
             data[6..8].try_into().expect("slice size is 2"),
         ))
     }
@@ -94,14 +94,14 @@ impl TryFrom<u8> for QueryMode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(QueryMode::Query),
-            1 => Ok(QueryMode::Set),
+            0 => Ok(Self::Query),
+            1 => Ok(Self::Set),
             e => Err(ParseError::BooleanField(e)),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ReportingMode {
     Active,
@@ -113,8 +113,8 @@ impl TryFrom<u8> for ReportingMode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(ReportingMode::Active),
-            1 => Ok(ReportingMode::Query),
+            0 => Ok(Self::Active),
+            1 => Ok(Self::Query),
             e => Err(ParseError::BooleanField(e)),
         }
     }
@@ -129,7 +129,7 @@ impl Reporting {
     fn from_bytes(data: &[u8]) -> Result<Self, ParseError> {
         let mode = data[3].try_into()?;
         let query = data[4].try_into()?;
-        Ok(Reporting {
+        Ok(Self {
             query: mode,
             reporting: query,
         })
@@ -141,26 +141,26 @@ impl Reporting {
     }
 
     #[allow(dead_code)]
-    pub fn new_query() -> Self {
-        Reporting {
+    pub const fn new_query() -> Self {
+        Self {
             query: QueryMode::Query,
             reporting: ReportingMode::Active,
         }
     }
 
-    pub fn new_set(reporting: ReportingMode) -> Self {
-        Reporting {
+    pub const fn new_set(reporting: ReportingMode) -> Self {
+        Self {
             query: QueryMode::Set,
             reporting,
         }
     }
 
-    pub fn mode(self) -> ReportingMode {
+    pub const fn mode(self) -> ReportingMode {
         self.reporting
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SleepMode {
     Sleep,
@@ -172,8 +172,8 @@ impl TryFrom<u8> for SleepMode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(SleepMode::Sleep),
-            1 => Ok(SleepMode::Work),
+            0 => Ok(Self::Sleep),
+            1 => Ok(Self::Work),
             e => Err(ParseError::BooleanField(e)),
         }
     }
@@ -188,7 +188,7 @@ impl Sleep {
     fn from_bytes(data: &[u8]) -> Result<Self, ParseError> {
         let mode = data[3].try_into()?;
         let work = data[4].try_into()?;
-        Ok(Sleep {
+        Ok(Self {
             query: mode,
             sleep: work,
         })
@@ -200,21 +200,21 @@ impl Sleep {
     }
 
     #[allow(dead_code)]
-    pub fn new_query() -> Self {
-        Sleep {
+    pub const fn new_query() -> Self {
+        Self {
             query: QueryMode::Query,
             sleep: SleepMode::Sleep,
         }
     }
 
-    pub fn new_set(sleep: SleepMode) -> Self {
-        Sleep {
+    pub const fn new_set(sleep: SleepMode) -> Self {
+        Self {
             query: QueryMode::Set,
             sleep,
         }
     }
 
-    pub fn sleep_mode(self) -> SleepMode {
+    pub const fn sleep_mode(self) -> SleepMode {
         self.sleep
     }
 }
@@ -232,7 +232,7 @@ impl WorkingPeriod {
         if time > 30 {
             Err(ParseError::TimeField(time))
         } else {
-            Ok(WorkingPeriod {
+            Ok(Self {
                 query: mode,
                 minutes: time,
             })
@@ -245,21 +245,21 @@ impl WorkingPeriod {
     }
 
     #[allow(dead_code)]
-    pub fn new_query() -> Self {
-        WorkingPeriod {
+    pub const fn new_query() -> Self {
+        Self {
             query: QueryMode::Query,
             minutes: 0,
         }
     }
 
-    pub fn new_set(minutes: u8) -> Self {
-        WorkingPeriod {
+    pub const fn new_set(minutes: u8) -> Self {
+        Self {
             query: QueryMode::Set,
             minutes,
         }
     }
 
-    pub fn period(&self) -> u8 {
+    pub const fn period(&self) -> u8 {
         self.minutes
     }
 }
@@ -285,7 +285,7 @@ impl Display for FirmwareVersion {
 
 impl FirmwareVersion {
     fn from_bytes(data: &[u8]) -> Self {
-        FirmwareVersion {
+        Self {
             year: data[3],
             month: data[4],
             day: data[5],
@@ -305,13 +305,13 @@ pub enum Kind {
 impl Kind {
     fn parse(data: &[u8]) -> Result<Self, ParseError> {
         match data[1] {
-            0xC0 => Ok(Kind::Query(Some(Measurement::from_bytes(data)))),
+            0xC0 => Ok(Self::Query(Some(Measurement::from_bytes(data)))),
             0xC5 => match data[2] {
-                2 => Ok(Kind::ReportingMode(Reporting::from_bytes(data)?)),
-                5 => Ok(Kind::SetDeviceID(NewDeviceID::from_bytes(data))),
-                6 => Ok(Kind::Sleep(Sleep::from_bytes(data)?)),
-                8 => Ok(Kind::WorkingPeriod(WorkingPeriod::from_bytes(data)?)),
-                7 => Ok(Kind::FWVersion(Some(FirmwareVersion::from_bytes(data)))),
+                2 => Ok(Self::ReportingMode(Reporting::from_bytes(data)?)),
+                5 => Ok(Self::SetDeviceID(NewDeviceID::from_bytes(data))),
+                6 => Ok(Self::Sleep(Sleep::from_bytes(data)?)),
+                8 => Ok(Self::WorkingPeriod(WorkingPeriod::from_bytes(data)?)),
+                7 => Ok(Self::FWVersion(Some(FirmwareVersion::from_bytes(data)))),
                 s => Err(ParseError::SubCommand(s)),
             },
             c => Err(ParseError::CommandID(c)),
@@ -320,24 +320,24 @@ impl Kind {
 
     fn populate_query(&self, data: &mut [u8]) {
         let subcommand = match self {
-            Kind::ReportingMode(r) => {
+            Self::ReportingMode(r) => {
                 r.populate_query(data);
                 2
             }
-            Kind::Query(_) => 4,
-            Kind::SetDeviceID(d) => {
+            Self::Query(_) => 4,
+            Self::SetDeviceID(d) => {
                 d.populate_query(data);
                 5
             }
-            Kind::Sleep(s) => {
+            Self::Sleep(s) => {
                 s.populate_query(data);
                 6
             }
-            Kind::WorkingPeriod(w) => {
+            Self::WorkingPeriod(w) => {
                 w.populate_query(data);
                 8
             }
-            Kind::FWVersion(_) => 7,
+            Self::FWVersion(_) => 7,
         };
 
         data[1] = 0xB4;
@@ -366,17 +366,15 @@ impl Message {
             match &msg {
                 Kind::Sleep(s) => {
                     // quirk: sleep reply messages end with 0xFF?!
-                    if let QueryMode::Set = s.query {
-                        if data[9] != 0xFF {
-                            return Err(ParseError::HeadTail);
-                        }
+                    if matches!(s.query, QueryMode::Set) && data[9] != 0xFF {
+                        return Err(ParseError::HeadTail);
                     }
                 }
                 _ => return Err(ParseError::HeadTail),
             }
         }
 
-        Ok(Message {
+        Ok(Self {
             kind: msg,
             sensor_id: Some(sensor_id),
         })
@@ -410,8 +408,8 @@ impl Message {
         output
     }
 
-    pub fn new(kind: Kind, target_sensor: Option<u16>) -> Self {
-        Message {
+    pub const fn new(kind: Kind, target_sensor: Option<u16>) -> Self {
+        Self {
             kind,
             sensor_id: target_sensor,
         }

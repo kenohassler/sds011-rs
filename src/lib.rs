@@ -111,6 +111,7 @@
 #![no_std]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
+#![warn(clippy::nursery)]
 
 use core::fmt::Debug;
 use core::marker::PhantomData;
@@ -156,7 +157,7 @@ impl Config {
     /// and reading the measurement, in milliseconds.
     /// The sensor manual recommends 30 seconds, which is the default.
     #[must_use]
-    pub fn set_measure_delay(mut self, measure_delay: u32) -> Self {
+    pub const fn set_measure_delay(mut self, measure_delay: u32) -> Self {
         self.measure_delay = measure_delay;
         self
     }
@@ -164,7 +165,7 @@ impl Config {
     /// How many milliseconds to wait before waking the sensor; defaults to 500.
     /// Setting this too low can result in the sensor not coming up (boot time?)
     #[must_use]
-    pub fn set_sleep_delay(mut self, sleep_delay: u32) -> Self {
+    pub const fn set_sleep_delay(mut self, sleep_delay: u32) -> Self {
         self.sleep_delay = sleep_delay;
         self
     }
@@ -398,8 +399,8 @@ where
 {
     /// Create a new sensor instance, consuming the serial interface.
     /// The returned instance needs to be initialized before use.
-    pub fn new(serial: RW, config: Config) -> Self {
-        SDS011::<RW, Uninitialized> {
+    pub const fn new(serial: RW, config: Config) -> Self {
+        Self {
             serial,
             config,
             sensor_id: None,
@@ -412,7 +413,7 @@ where
     ///
     /// # Errors
     /// This communicates with the sensor over serial and may fail with any
-    /// [SDS011Error].
+    /// [`SDS011Error`].
     #[maybe_async]
     pub async fn init<D: DelayNs>(
         mut self,
@@ -448,20 +449,20 @@ where
     ///
     /// # Errors
     /// This communicates with the sensor over serial and may fail with any
-    /// [SDS011Error].
+    /// [`SDS011Error`].
     #[maybe_async]
     pub async fn measure(&mut self) -> Result<Measurement, SDS011Error<RW::Error>> {
         self.read_sensor(false).await
     }
 
     /// Get the sensor's ID.
-    #[allow(clippy::missing_panics_doc)] // should never panic
-    pub fn id(&self) -> u16 {
+    #[expect(clippy::missing_panics_doc, reason = "should never panic")]
+    pub const fn id(&self) -> u16 {
         self.sensor_id.expect("sensor is initialized")
     }
 
     /// Get the sensor's firmware version.
-    #[allow(clippy::missing_panics_doc)] // should never panic
+    #[expect(clippy::missing_panics_doc, reason = "should never panic")]
     pub fn version(&self) -> FirmwareVersion {
         self.firmware.clone().expect("sensor is initialized")
     }
@@ -477,7 +478,7 @@ where
     ///
     /// # Errors
     /// This communicates with the sensor over serial and may fail with any
-    /// [SDS011Error].
+    /// [`SDS011Error`].
     #[maybe_async]
     pub async fn measure<D: DelayNs>(
         &mut self,
@@ -502,7 +503,7 @@ where
     ///
     /// # Errors
     /// This communicates with the sensor over serial and may fail with any
-    /// [SDS011Error].
+    /// [`SDS011Error`].
     #[maybe_async]
     pub async fn make_periodic<D: DelayNs>(
         mut self,
@@ -530,13 +531,13 @@ where
     }
 
     /// Get the sensor's ID.
-    #[allow(clippy::missing_panics_doc)] // should never panic
-    pub fn id(&self) -> u16 {
+    #[expect(clippy::missing_panics_doc, reason = "should never panic")]
+    pub const fn id(&self) -> u16 {
         self.sensor_id.expect("sensor is initialized")
     }
 
     /// Get the sensor's firmware version.
-    #[allow(clippy::missing_panics_doc)] // should never panic
+    #[expect(clippy::missing_panics_doc, reason = "should never panic")]
     pub fn version(&self) -> FirmwareVersion {
         self.firmware.clone().expect("sensor is initialized")
     }
